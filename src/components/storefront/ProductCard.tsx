@@ -1,0 +1,36 @@
+import type { Product } from "@/types/ecommerce";
+import { ShoppingCart } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+
+export function ProductCard({ product }: { product: Product }) {
+  return (
+    <article className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <Link href={`/products/${product.slug}`} className="block aspect-[4/3] overflow-hidden bg-slate-100">
+        <Image
+          src={product.imageUrls[0] || "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=80"}
+          alt={product.name}
+          width={900}
+          height={675}
+          className="h-full w-full object-cover transition duration-300 hover:scale-105"
+        />
+      </Link>
+      <div className="space-y-3 p-4">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-teal-700">{product.categoryId?.name || "Catalog"}</p>
+          <h3 className="mt-1 text-base font-semibold text-slate-950">{product.name}</h3>
+          <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-600">{product.shortDescription || product.description}</p>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-lg font-semibold text-slate-950">${product.price.toFixed(2)}</p>
+            {product.compareAtPrice ? <p className="text-xs text-slate-400 line-through">${product.compareAtPrice.toFixed(2)}</p> : null}
+          </div>
+          <button className="grid size-10 place-items-center rounded-md bg-teal-600 text-white" aria-label={`Add ${product.name} to cart`}>
+            <ShoppingCart size={18} />
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
