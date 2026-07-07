@@ -1,5 +1,8 @@
+"use client";
+
 import type { Product } from "@/types/ecommerce";
-import { ShoppingCart } from "lucide-react";
+import { addToCart, toggleWishlist } from "@/utils/guestStore";
+import { Heart, ShoppingCart } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -26,9 +29,14 @@ export function ProductCard({ product }: { product: Product }) {
             <p className="text-lg font-semibold text-slate-950">${product.price.toFixed(2)}</p>
             {product.compareAtPrice ? <p className="text-xs text-slate-400 line-through">${product.compareAtPrice.toFixed(2)}</p> : null}
           </div>
-          <button className="grid size-10 place-items-center rounded-md bg-teal-600 text-white" aria-label={`Add ${product.name} to cart`}>
-            <ShoppingCart size={18} />
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => toggleWishlist(product)} className="grid size-10 place-items-center rounded-md border border-slate-200 text-slate-600" aria-label={`Add ${product.name} to wishlist`}>
+              <Heart size={18} />
+            </button>
+            <button onClick={() => addToCart(product)} className="grid size-10 place-items-center rounded-md bg-teal-600 text-white" aria-label={`Add ${product.name} to cart`}>
+              <ShoppingCart size={18} />
+            </button>
+          </div>
         </div>
       </div>
     </article>

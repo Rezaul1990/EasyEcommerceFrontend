@@ -1,4 +1,4 @@
-import type { ApiResponse, Category, Product } from "@/types/ecommerce";
+import type { AdminUser, ApiResponse, Category, Coupon, CourierCompany, DashboardSummary, DeliveryArea, InventoryMovement, InventoryRow, InviteResponse, Order, PaymentMethodSetting, Permission, Product, ReportSummary, Role, SidebarItem, StockImportHistory, StoreSetting } from "@/types/ecommerce";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
@@ -76,6 +76,86 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return payload.data;
 }
 
+function getAdminToken() {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem("easy_ecommerce_admin_token") || "";
+}
+
+export function setAdminToken(token: string) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem("easy_ecommerce_admin_token", token);
+}
+
+export function clearAdminToken() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem("easy_ecommerce_admin_token");
+}
+
+export async function adminRequest<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getAdminToken();
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options?.headers || {}),
+    },
+  });
+
+  const payload = (await response.json()) as ApiResponse<T>;
+  if (!response.ok || !payload.success) {
+    throw new Error(payload.message || "Request failed");
+  }
+  return payload.data;
+}
+
+export async function loginAdmin(email: string, password: string) {
+  return request<{ token: string; user: AdminUser }>("/admin/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function getCurrentAdmin() {
+  return adminRequest<AdminUser>("/admin/auth/me");
+}
+
+export async function getAdminSidebar() {
+  return adminRequest<SidebarItem[]>("/admin/me/sidebar");
+}
+
+export async function getPermissionRegistry() {
+  return adminRequest<Permission[]>("/admin/permissions");
+}
+
+export async function getRoles() {
+  return adminRequest<Role[]>("/admin/roles");
+}
+
+export async function createRole(payload: { name: string; slug: string; description: string; permissions: string[] }) {
+  return adminRequest<Role>("/admin/roles", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function getUsers() {
+  return adminRequest<AdminUser[]>("/admin/users");
+}
+
+export async function createUserInvite(payload: { name: string; email: string; roleId: string }) {
+  return adminRequest<InviteResponse>("/admin/users", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function resendUserInvite(userId: string) {
+  return adminRequest<{ inviteLink: string; expiresInDays: number }>(`/admin/users/${userId}/resend-invite`, { method: "POST" });
+}
+
+export async function verifyInviteToken(token: string) {
+  return request<{ email: string; name: string; role: { name: string; slug: string } | null; expiresAt: string }>(`/admin/invites/verify/${token}`);
+}
+
+export async function acceptInvite(token: string, password: string) {
+  return request<AdminUser>("/admin/invites/accept", { method: "POST", body: JSON.stringify({ token, password }) });
+}
+
 export async function getProducts(): Promise<Product[]> {
   try {
     return await request<Product[]>("/store/products");
@@ -92,13 +172,185 @@ export async function getCategories(): Promise<Category[]> {
   }
 }
 
+export async function getProductBySlug(slug: string): Promise<Product | null> {
+  try {
+    return await request<Product>(`/products/${slug}`);
+  } catch {
+    return sampleProducts.find((product) => product.slug === slug) || null;
+  }
+}
+
+export async function getAdminCategories(): Promise<Category[]> {
+  return adminRequest<Category[]>("/admin/categories");
+}
+
+export async function createAdminCategory(payload: { name: string; description: string; status: "active" | "inactive"; sortOrder: number }) {
+  return adminRequest<Category>("/admin/categories", {
+    method: "POST",
+    body: JSON.stringify({ ...payload, isActive: payload.status === "active" }),
+  });
+}
+
+export async function deleteAdminCategory(id: string) {
+  return adminRequest<Category>(`/admin/categories/${id}`, { method: "DELETE" });
+}
+
+export async function getAdminProducts(): Promise<Product[]> {
+  return adminRequest<Product[]>("/admin/products");
+}
+
+export async function createAdminProduct(payload: {
+  name: string;
+  categoryId: string;
+  sku: string;
+  price: number;
+  stockQuantity: number;
+  lowStockThreshold: number;
+  shortDescription: string;
+  description: string;
+  status: "draft" | "active" | "inactive";
+  isFeatured: boolean;
+  discountType: "none" | "fixed" | "percentage";
+  discountValue: number;
+}) {
+  return adminRequest<Product>("/admin/products", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function archiveAdminProduct(id: string) {
+  return adminRequest<Product>(`/admin/products/${id}`, { method: "DELETE" });
+}
+
+export async function getAdminCoupons(): Promise<Coupon[]> {
+  return adminRequest<Coupon[]>("/admin/coupons");
+}
+
+export async function createAdminCoupon(payload: {
+  code: string;
+  title: string;
+  description: string;
+  discountType: "fixed" | "percentage";
+  discountValue: number;
+  minimumOrderAmount: number;
+  expiryDate: string;
+  status: "active" | "inactive";
+  products: string[];
+}) {
+  return adminRequest<Coupon>("/admin/coupons", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function deleteAdminCoupon(id: string) {
+  return adminRequest<Coupon>(`/admin/coupons/${id}`, { method: "DELETE" });
+}
+
+export async function getInventory(status?: "low_stock" | "out_of_stock") {
+  if (status === "low_stock") return adminRequest<InventoryRow[]>("/admin/inventory/low-stock");
+  if (status === "out_of_stock") return adminRequest<InventoryRow[]>("/admin/inventory/out-of-stock");
+  return adminRequest<InventoryRow[]>("/admin/inventory");
+}
+
+export async function getInventoryMovements() {
+  return adminRequest<InventoryMovement[]>("/admin/inventory/movements");
+}
+
+export async function getStockImportHistory() {
+  return adminRequest<StockImportHistory[]>("/admin/inventory/import-history");
+}
+
+export async function importRestockCsv(file: File, importType: "low_stock" | "out_of_stock") {
+  const token = getAdminToken();
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("importType", importType);
+  const response = await fetch(`${API_URL}/admin/inventory/restock-import`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+  const payload = (await response.json()) as ApiResponse<{ history: StockImportHistory; errors: StockImportHistory["errors"] }>;
+  if (!response.ok || !payload.success) throw new Error(payload.message || "Import failed");
+  return payload.data;
+}
+
+export async function downloadInventoryDemo(type: "low_stock" | "out_of_stock") {
+  const token = getAdminToken();
+  const routeType = type.replace("_", "-");
+  const response = await fetch(`${API_URL}/admin/inventory/${routeType}/demo-download`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) throw new Error("Demo download failed");
+  return response.blob();
+}
+
+export async function createPublicOrder(payload: {
+  customer: { name: string; email: string; phone: string; address: string; city: string; postalCode?: string };
+  items: Array<{ productId: string; quantity: number }>;
+  paymentMethod: "cod" | "manual";
+  notes?: string;
+}) {
+  return request<{ orderNumber: string; grandTotal: number }>("/orders", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function trackPublicOrder(payload: { orderNumber: string; phone: string }) {
+  return request<Order>("/orders/track", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function getAdminOrders() {
+  return adminRequest<Order[]>("/admin/orders");
+}
+
+export async function updateAdminOrderStatus(id: string, status: string) {
+  return adminRequest<Order>(`/admin/orders/${id}/status`, { method: "PUT", body: JSON.stringify({ status }) });
+}
+
+export async function updateAdminOrderPayment(id: string, payload: { paymentStatus: string; paidAmount: number; dueAmount: number; refundAmount: number; note?: string }) {
+  return adminRequest<Order>(`/admin/orders/${id}/payment`, { method: "PUT", body: JSON.stringify(payload) });
+}
+
+export async function updateAdminOrderCourier(id: string, payload: { courier: string; courierCharge: number; trackingNumber: string }) {
+  return adminRequest<Order>(`/admin/orders/${id}/courier`, { method: "PUT", body: JSON.stringify(payload) });
+}
+
+export async function getAdminCouriers() {
+  return adminRequest<CourierCompany[]>("/admin/couriers");
+}
+
+export async function createAdminCourier(payload: { name: string; phone: string; contactPerson: string; defaultCharge: number; status: "active" | "inactive" }) {
+  return adminRequest<CourierCompany>("/admin/couriers", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function getStoreSettings() {
+  return adminRequest<StoreSetting>("/admin/settings/store");
+}
+
+export async function updateStoreSettings(payload: StoreSetting) {
+  return adminRequest<StoreSetting>("/admin/settings/store", { method: "PUT", body: JSON.stringify(payload) });
+}
+
+export async function getPaymentMethods() {
+  return adminRequest<PaymentMethodSetting[]>("/admin/settings/payment-methods");
+}
+
+export async function updatePaymentMethods(methods: PaymentMethodSetting[]) {
+  return adminRequest<PaymentMethodSetting[]>("/admin/settings/payment-methods", { method: "PUT", body: JSON.stringify({ methods }) });
+}
+
+export async function getDeliveryAreas() {
+  return adminRequest<DeliveryArea[]>("/admin/settings/delivery-areas");
+}
+
+export async function createDeliveryArea(payload: Omit<DeliveryArea, "_id">) {
+  return adminRequest<DeliveryArea>("/admin/settings/delivery-areas", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function getReport(type: string) {
+  return adminRequest<ReportSummary>(`/admin/reports/${type}`);
+}
+
 export async function getAdminSummary() {
-  return {
-    activeProducts: sampleProducts.length,
-    pendingOrders: 8,
-    lowStockProducts: sampleProducts.filter((product) => product.stockQuantity <= 10).length,
-    totalRevenue: 18420,
-  };
+  return adminRequest<DashboardSummary>("/admin/dashboard/summary");
 }
 
 export { API_URL, sampleProducts };
