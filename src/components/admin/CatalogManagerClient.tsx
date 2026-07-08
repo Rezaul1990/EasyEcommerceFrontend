@@ -11,6 +11,29 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 
 const moneyFormatter = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
+function makeSkuBase(value: string) {
+  const base = value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return base || "PRODUCT";
+}
+
+function makeUniqueSku(value: string, products: Product[]) {
+  const base = makeSkuBase(value);
+  const existingSkus = new Set(products.map((product) => product.sku.toUpperCase()));
+  let candidate = base;
+  let suffix = 2;
+
+  while (existingSkus.has(candidate)) {
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+  }
+
+  return candidate;
+}
+
 export function CatalogManagerClient() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -23,6 +46,8 @@ export function CatalogManagerClient() {
   const [saving, setSaving] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [uploadedImageAssets, setUploadedImageAssets] = useState<ImageAsset[]>([]);
+  const [productName, setProductName] = useState("");
+  const [productSku, setProductSku] = useState("");
 
   useEffect(() => {
     let ignore = false;
@@ -81,9 +106,9 @@ export function CatalogManagerClient() {
     setError("");
     try {
       const product = await createAdminProduct({
-        name: String(form.get("name") || ""),
+        name: productName,
         categoryId: String(form.get("categoryId") || ""),
-        sku: String(form.get("sku") || ""),
+        sku: productSku,
         price: Number(form.get("price") || 0),
         stockQuantity: Number(form.get("stockQuantity") || 0),
         lowStockThreshold: Number(form.get("lowStockThreshold") || 5),
@@ -99,6 +124,8 @@ export function CatalogManagerClient() {
       });
       setProducts((current) => [product, ...current]);
       formElement.reset();
+      setProductName("");
+      setProductSku("");
       setUploadedImageAssets([]);
       setSuccess("Product created");
     } catch (err) {
@@ -106,6 +133,11 @@ export function CatalogManagerClient() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function updateProductName(value: string) {
+    setProductName(value);
+    setProductSku(value ? makeUniqueSku(value, products) : "");
   }
 
   async function handleProductImageUpload(event: ChangeEvent<HTMLInputElement>) {
@@ -224,7 +256,7 @@ export function CatalogManagerClient() {
               Add product
             </h2>
             <form onSubmit={handleCreateProduct} className="mt-4 grid gap-3">
-              <input name="name" className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Product name" required />
+              <input name="name" value={productName} onChange={(event) => updateProductName(event.target.value)} autoComplete="off" className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Product name" required />
               <select name="categoryId" className="h-10 rounded-md border border-slate-300 px-3 text-sm" required>
                 <option value="">Select category</option>
                 {categories.map((category) => (
@@ -234,7 +266,7 @@ export function CatalogManagerClient() {
                 ))}
               </select>
               <div className="grid grid-cols-2 gap-3">
-                <input name="sku" className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="SKU" required />
+                <input name="sku" value={productSku} readOnly autoComplete="off" className="h-10 rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700" placeholder="Auto SKU" required />
                 <input name="price" type="number" min="0" step="0.01" className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Price" required />
                 <input name="stockQuantity" type="number" min="0" className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Stock" required />
                 <input name="lowStockThreshold" type="number" min="0" defaultValue="5" className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Low stock" />
