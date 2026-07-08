@@ -51,7 +51,8 @@ export function CatalogManagerClient() {
 
   async function handleCreateCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     setSaving(true);
     setError("");
     try {
@@ -62,7 +63,7 @@ export function CatalogManagerClient() {
         sortOrder: Number(form.get("sortOrder") || 0),
       });
       setCategories((current) => [...current, category].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)));
-      event.currentTarget.reset();
+      formElement.reset();
       setSuccess("Category created");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Category could not be created");
@@ -73,7 +74,8 @@ export function CatalogManagerClient() {
 
   async function handleCreateProduct(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     setSaving(true);
     setError("");
     try {
@@ -95,7 +97,7 @@ export function CatalogManagerClient() {
         imageAssets: uploadedImageAssets,
       });
       setProducts((current) => [product, ...current]);
-      event.currentTarget.reset();
+      formElement.reset();
       setUploadedImageAssets([]);
       setSuccess("Product created");
     } catch (err) {
@@ -138,7 +140,8 @@ export function CatalogManagerClient() {
 
   async function handleCreateCoupon(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     setSaving(true);
     setError("");
     try {
@@ -154,7 +157,7 @@ export function CatalogManagerClient() {
         products: [],
       });
       setCoupons((current) => [coupon, ...current]);
-      event.currentTarget.reset();
+      formElement.reset();
       setSuccess("Coupon created");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Coupon could not be created");
