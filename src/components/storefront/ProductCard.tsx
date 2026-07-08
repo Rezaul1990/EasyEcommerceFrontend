@@ -1,14 +1,14 @@
 "use client";
 
 import type { Product } from "@/types/ecommerce";
-import { resolveImageUrl, shouldBypassImageOptimizer } from "@/utils/imageUrl";
+import { getProductImageUrl, shouldBypassImageOptimizer } from "@/utils/imageUrl";
 import { addToCart, toggleWishlist } from "@/utils/guestStore";
 import { Heart, ShoppingCart } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
 export function ProductCard({ product }: { product: Product }) {
-  const image = resolveImageUrl(product.imageUrls?.[0]);
+  const image = getProductImageUrl(product);
 
   return (
     <article className="overflow-hidden rounded-lg border border-slate-200 bg-white">

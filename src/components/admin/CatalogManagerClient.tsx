@@ -4,7 +4,7 @@ import { DataTable } from "@/components/admin/ui/DataTable";
 import { ErrorState, LoadingState } from "@/components/admin/ui/States";
 import { archiveAdminProduct, createAdminCategory, createAdminCoupon, createAdminProduct, deleteAdminCategory, deleteAdminCoupon, deleteAdminProductImage, getAdminCategories, getAdminCoupons, getAdminProducts, updateAdminProduct, uploadAdminProductImages } from "@/services/apiClient";
 import type { Category, Coupon, ImageAsset, Product } from "@/types/ecommerce";
-import { resolveImageUrl, shouldBypassImageOptimizer } from "@/utils/imageUrl";
+import { getProductImageUrl, resolveImageUrl, shouldBypassImageOptimizer } from "@/utils/imageUrl";
 import { Archive, FolderPlus, ImageIcon, Loader2, Pencil, Plus, TicketPercent, Trash2, X } from "lucide-react";
 import Image from "next/image";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
@@ -153,7 +153,7 @@ export function CatalogManagerClient() {
 
   function productImageAssets(product: Product): ImageAsset[] {
     if (product.imageAssets?.length) return product.imageAssets;
-    return (product.imageUrls || []).filter(Boolean).map((url) => ({ url, provider: url.includes("res.cloudinary.com") ? "cloudinary" : "local" }));
+    return [...(product.imageUrls || []), ...(product.galleryImages || [])].filter(Boolean).map((url) => ({ url, provider: url.includes("res.cloudinary.com") ? "cloudinary" : "local" }));
   }
 
   function startEditProduct(product: Product) {
@@ -368,7 +368,7 @@ export function CatalogManagerClient() {
                   render: (row) => (
                     <div className="flex items-center gap-3">
                       <div className="relative size-11 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
-                        {row.imageUrls?.[0] ? <Image src={resolveImageUrl(row.imageUrls[0])} alt={row.name} fill sizes="44px" unoptimized={shouldBypassImageOptimizer(resolveImageUrl(row.imageUrls[0]))} className="object-cover" /> : <div className="flex h-full w-full items-center justify-center text-slate-400"><ImageIcon size={16} /></div>}
+                        {getProductImageUrl(row, "") ? <Image src={getProductImageUrl(row, "")} alt={row.name} fill sizes="44px" unoptimized={shouldBypassImageOptimizer(getProductImageUrl(row, ""))} className="object-cover" /> : <div className="flex h-full w-full items-center justify-center text-slate-400"><ImageIcon size={16} /></div>}
                       </div>
                       <span className="font-medium text-slate-950">{row.name}</span>
                     </div>

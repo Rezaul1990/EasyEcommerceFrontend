@@ -1,7 +1,7 @@
 "use client";
 
 import type { Product } from "@/types/ecommerce";
-import { resolveImageUrl, shouldBypassImageOptimizer } from "@/utils/imageUrl";
+import { getProductImageUrl, shouldBypassImageOptimizer } from "@/utils/imageUrl";
 import { addToCart, toggleWishlist } from "@/utils/guestStore";
 import { Heart, ShoppingCart } from "lucide-react";
 import Image from "next/image";
@@ -9,7 +9,7 @@ import { useState } from "react";
 
 export function ProductDetailClient({ product }: { product: Product }) {
   const [quantity, setQuantity] = useState(1);
-  const image = resolveImageUrl(product.imageUrls?.[0] || product.galleryImages?.[0]);
+  const image = getProductImageUrl(product);
   const price = product.finalPrice || product.price;
   const availableStock = product.stockQuantity ?? product.stock ?? 0;
 
