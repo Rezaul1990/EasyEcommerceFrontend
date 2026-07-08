@@ -92,9 +92,17 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   const payload = await parseApiResponse<T>(response);
   if (!response.ok || !payload.success) {
-    throw new Error(payload.message || "Request failed");
+    throw new Error(formatApiError(payload, "Request failed"));
   }
   return payload.data;
+}
+
+function formatApiError<T>(payload: ApiResponse<T>, fallback: string) {
+  const detailMessage = payload.details?.map((detail) => {
+    const path = detail.path ? `${detail.path}: ` : "";
+    return `${path}${detail.message || ""}`.trim();
+  }).filter(Boolean).join("; ");
+  return detailMessage ? `${payload.message || fallback}: ${detailMessage}` : payload.message || fallback;
 }
 
 function getAdminToken() {
@@ -125,7 +133,7 @@ export async function adminRequest<T>(path: string, options?: RequestInit): Prom
 
   const payload = await parseApiResponse<T>(response);
   if (!response.ok || !payload.success) {
-    throw new Error(payload.message || "Request failed");
+    throw new Error(formatApiError(payload, "Request failed"));
   }
   return payload.data;
 }
@@ -250,7 +258,7 @@ export async function uploadAdminProductImages(files: File[]) {
     body: formData,
   });
   const payload = await parseApiResponse<ImageAsset[]>(response);
-  if (!response.ok || !payload.success) throw new Error(payload.message || "Image upload failed");
+  if (!response.ok || !payload.success) throw new Error(formatApiError(payload, "Image upload failed"));
   return payload.data;
 }
 
@@ -312,7 +320,7 @@ export async function importRestockCsv(file: File, importType: "low_stock" | "ou
     body: formData,
   });
   const payload = await parseApiResponse<{ history: StockImportHistory; errors: StockImportHistory["errors"] }>(response);
-  if (!response.ok || !payload.success) throw new Error(payload.message || "Import failed");
+  if (!response.ok || !payload.success) throw new Error(formatApiError(payload, "Import failed"));
   return payload.data;
 }
 

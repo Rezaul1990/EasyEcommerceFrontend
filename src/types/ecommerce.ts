@@ -55,6 +55,7 @@ export type ApiResponse<T> = {
   message: string;
   data: T;
   meta?: Record<string, unknown>;
+  details?: Array<{ path?: string; message?: string }> | null;
 };
 
 export type CartItem = Product & {
