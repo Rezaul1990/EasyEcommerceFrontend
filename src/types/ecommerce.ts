@@ -29,6 +29,7 @@ export type Product = {
   finalPrice?: number;
   stock?: number;
   reservedStock?: number;
+  lowStockThreshold?: number;
   galleryImages?: string[];
   imageAssets?: ImageAsset[];
   status: "draft" | "active" | "inactive" | "archived";

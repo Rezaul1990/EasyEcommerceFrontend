@@ -2,10 +2,10 @@
 
 import { DataTable } from "@/components/admin/ui/DataTable";
 import { ErrorState, LoadingState } from "@/components/admin/ui/States";
-import { archiveAdminProduct, createAdminCategory, createAdminCoupon, createAdminProduct, deleteAdminCategory, deleteAdminCoupon, deleteAdminProductImage, getAdminCategories, getAdminCoupons, getAdminProducts, uploadAdminProductImages } from "@/services/apiClient";
+import { archiveAdminProduct, createAdminCategory, createAdminCoupon, createAdminProduct, deleteAdminCategory, deleteAdminCoupon, deleteAdminProductImage, getAdminCategories, getAdminCoupons, getAdminProducts, updateAdminProduct, uploadAdminProductImages } from "@/services/apiClient";
 import type { Category, Coupon, ImageAsset, Product } from "@/types/ecommerce";
 import { resolveImageUrl, shouldBypassImageOptimizer } from "@/utils/imageUrl";
-import { Archive, FolderPlus, ImageIcon, Loader2, Plus, TicketPercent, Trash2, X } from "lucide-react";
+import { Archive, FolderPlus, ImageIcon, Loader2, Pencil, Plus, TicketPercent, Trash2, X } from "lucide-react";
 import Image from "next/image";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 
@@ -20,9 +20,9 @@ function makeSkuBase(value: string) {
   return base || "PRODUCT";
 }
 
-function makeUniqueSku(value: string, products: Product[]) {
+function makeUniqueSku(value: string, products: Product[], excludeProductId?: string) {
   const base = makeSkuBase(value);
-  const existingSkus = new Set(products.map((product) => product.sku.toUpperCase()));
+  const existingSkus = new Set(products.filter((product) => product._id !== excludeProductId).map((product) => product.sku.toUpperCase()));
   let candidate = base;
   let suffix = 2;
 
@@ -48,6 +48,8 @@ export function CatalogManagerClient() {
   const [uploadedImageAssets, setUploadedImageAssets] = useState<ImageAsset[]>([]);
   const [productName, setProductName] = useState("");
   const [productSku, setProductSku] = useState("");
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [productFormKey, setProductFormKey] = useState(0);
 
   useEffect(() => {
     let ignore = false;
@@ -105,7 +107,7 @@ export function CatalogManagerClient() {
     setSaving(true);
     setError("");
     try {
-      const product = await createAdminProduct({
+      const productPayload = {
         name: productName,
         categoryId: String(form.get("categoryId") || ""),
         sku: productSku,
@@ -121,13 +123,16 @@ export function CatalogManagerClient() {
         imageUrls: uploadedImageAssets.map((asset) => asset.url),
         galleryImages: uploadedImageAssets.map((asset) => asset.url),
         imageAssets: uploadedImageAssets,
-      });
-      setProducts((current) => [product, ...current]);
+      };
+      const product = editingProduct ? await updateAdminProduct(editingProduct._id, productPayload) : await createAdminProduct(productPayload);
+      setProducts((current) => (editingProduct ? current.map((item) => (item._id === product._id ? product : item)) : [product, ...current]));
       formElement.reset();
       setProductName("");
       setProductSku("");
+      setEditingProduct(null);
       setUploadedImageAssets([]);
-      setSuccess("Product created");
+      setProductFormKey((value) => value + 1);
+      setSuccess(editingProduct ? "Product updated" : "Product created");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Product could not be created");
     } finally {
@@ -137,7 +142,38 @@ export function CatalogManagerClient() {
 
   function updateProductName(value: string) {
     setProductName(value);
-    setProductSku(value ? makeUniqueSku(value, products) : "");
+    setProductSku(value ? makeUniqueSku(value, products, editingProduct?._id) : "");
+  }
+
+  function productCategoryId(product: Product) {
+    if (!product.categoryId) return "";
+    if (typeof product.categoryId === "string") return product.categoryId;
+    return product.categoryId._id;
+  }
+
+  function productImageAssets(product: Product): ImageAsset[] {
+    if (product.imageAssets?.length) return product.imageAssets;
+    return (product.imageUrls || []).filter(Boolean).map((url) => ({ url, provider: url.includes("res.cloudinary.com") ? "cloudinary" : "local" }));
+  }
+
+  function startEditProduct(product: Product) {
+    setEditingProduct(product);
+    setProductName(product.name);
+    setProductSku(product.sku);
+    setUploadedImageAssets(productImageAssets(product));
+    setActiveTab("products");
+    setError("");
+    setSuccess("");
+    setProductFormKey((value) => value + 1);
+  }
+
+  function cancelEditProduct() {
+    setEditingProduct(null);
+    setProductName("");
+    setProductSku("");
+    setUploadedImageAssets([]);
+    setError("");
+    setProductFormKey((value) => value + 1);
   }
 
   async function handleProductImageUpload(event: ChangeEvent<HTMLInputElement>) {
@@ -253,11 +289,11 @@ export function CatalogManagerClient() {
           <section className="rounded-lg border border-slate-200 bg-white p-5">
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950">
               <Plus size={18} />
-              Add product
+              {editingProduct ? "Edit product" : "Add product"}
             </h2>
-            <form onSubmit={handleCreateProduct} className="mt-4 grid gap-3">
+            <form key={productFormKey} onSubmit={handleCreateProduct} className="mt-4 grid gap-3">
               <input name="name" value={productName} onChange={(event) => updateProductName(event.target.value)} autoComplete="off" className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Product name" required />
-              <select name="categoryId" className="h-10 rounded-md border border-slate-300 px-3 text-sm" required>
+              <select name="categoryId" defaultValue={editingProduct ? productCategoryId(editingProduct) : ""} className="h-10 rounded-md border border-slate-300 px-3 text-sm" required>
                 <option value="">Select category</option>
                 {categories.map((category) => (
                   <option key={category._id} value={category._id}>
@@ -267,12 +303,12 @@ export function CatalogManagerClient() {
               </select>
               <div className="grid grid-cols-2 gap-3">
                 <input name="sku" value={productSku} readOnly autoComplete="off" className="h-10 rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700" placeholder="Auto SKU" required />
-                <input name="price" type="number" min="0" step="0.01" className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Price" required />
-                <input name="stockQuantity" type="number" min="0" className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Stock" required />
-                <input name="lowStockThreshold" type="number" min="0" defaultValue="5" className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Low stock" />
+                <input name="price" type="number" min="0" step="0.01" defaultValue={editingProduct?.price || ""} className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Price" required />
+                <input name="stockQuantity" type="number" min="0" defaultValue={editingProduct?.stockQuantity ?? editingProduct?.stock ?? ""} className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Stock" required />
+                <input name="lowStockThreshold" type="number" min="0" defaultValue={editingProduct?.lowStockThreshold ?? 5} className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Low stock" />
               </div>
-              <textarea name="shortDescription" className="min-h-20 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Short description" />
-              <textarea name="description" className="min-h-24 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Description" required />
+              <textarea name="shortDescription" defaultValue={editingProduct?.shortDescription || ""} className="min-h-20 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Short description" />
+              <textarea name="description" defaultValue={editingProduct?.description || ""} className="min-h-24 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Description" required />
               <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-3">
                 <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
                   {uploadingImages ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} />}
@@ -295,23 +331,27 @@ export function CatalogManagerClient() {
                 )}
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <select name="discountType" className="h-10 rounded-md border border-slate-300 px-3 text-sm">
+                <select name="discountType" defaultValue={editingProduct?.discountType || "none"} className="h-10 rounded-md border border-slate-300 px-3 text-sm">
                   <option value="none">No discount</option>
                   <option value="fixed">Fixed</option>
                   <option value="percentage">Percentage</option>
                 </select>
-                <input name="discountValue" type="number" min="0" defaultValue="0" className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Discount" />
+                <input name="discountValue" type="number" min="0" defaultValue={editingProduct?.discountValue ?? 0} className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Discount" />
               </div>
-              <select name="status" className="h-10 rounded-md border border-slate-300 px-3 text-sm">
+              <select name="status" defaultValue={editingProduct?.status || "draft"} className="h-10 rounded-md border border-slate-300 px-3 text-sm">
                 <option value="draft">Draft</option>
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
+                <option value="archived">Archived</option>
               </select>
               <label className="flex items-center gap-2 text-sm text-slate-700">
-                <input type="checkbox" name="isFeatured" className="size-4 rounded border-slate-300 text-teal-600" />
+                <input type="checkbox" name="isFeatured" defaultChecked={editingProduct?.isFeatured || false} className="size-4 rounded border-slate-300 text-teal-600" />
                 Featured product
               </label>
-              <button disabled={saving || uploadingImages} className="rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-400">Create product</button>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button disabled={saving || uploadingImages} className="rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-400">{editingProduct ? "Update product" : "Create product"}</button>
+                {editingProduct ? <button type="button" onClick={cancelEditProduct} className="rounded-md border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700">Cancel edit</button> : null}
+              </div>
             </form>
           </section>
           <section className="rounded-lg border border-slate-200 bg-white">
@@ -338,7 +378,17 @@ export function CatalogManagerClient() {
                 { key: "stock", header: "Stock", render: (row) => <span>{row.stockQuantity ?? row.stock ?? 0}</span> },
                 { key: "price", header: "Price", render: (row) => <span>{moneyFormatter.format(row.finalPrice || row.price)}</span> },
                 { key: "status", header: "Status", render: (row) => <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">{row.status}</span> },
-                { key: "actions", header: "Actions", align: "right", render: (row) => <button onClick={() => archiveProduct(row._id)} className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700"><Archive size={15} />Archive</button> },
+                {
+                  key: "actions",
+                  header: "Actions",
+                  align: "right",
+                  render: (row) => (
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => startEditProduct(row)} className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700"><Pencil size={15} />Edit</button>
+                      <button disabled={row.status === "archived"} onClick={() => archiveProduct(row._id)} className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"><Archive size={15} />{row.status === "archived" ? "Archived" : "Archive"}</button>
+                    </div>
+                  ),
+                },
               ]}
             />
           </section>

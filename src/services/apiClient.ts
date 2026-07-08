@@ -237,7 +237,7 @@ export async function createAdminProduct(payload: {
   lowStockThreshold: number;
   shortDescription: string;
   description: string;
-  status: "draft" | "active" | "inactive";
+  status: "draft" | "active" | "inactive" | "archived";
   isFeatured: boolean;
   discountType: "none" | "fixed" | "percentage";
   discountValue: number;
@@ -246,6 +246,26 @@ export async function createAdminProduct(payload: {
   imageAssets?: ImageAsset[];
 }) {
   return adminRequest<Product>("/admin/products", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function updateAdminProduct(id: string, payload: {
+  name: string;
+  categoryId: string;
+  sku: string;
+  price: number;
+  stockQuantity: number;
+  lowStockThreshold: number;
+  shortDescription: string;
+  description: string;
+  status: "draft" | "active" | "inactive" | "archived";
+  isFeatured: boolean;
+  discountType: "none" | "fixed" | "percentage";
+  discountValue: number;
+  imageUrls?: string[];
+  galleryImages?: string[];
+  imageAssets?: ImageAsset[];
+}) {
+  return adminRequest<Product>(`/admin/products/${id}`, { method: "PUT", body: JSON.stringify(payload) });
 }
 
 export async function uploadAdminProductImages(files: File[]) {
