@@ -59,6 +59,27 @@ const sampleProducts: Product[] = [
   },
 ];
 
+async function parseApiResponse<T>(response: Response): Promise<ApiResponse<T>> {
+  const text = await response.text();
+  if (!text) {
+    return {
+      success: response.ok,
+      message: response.ok ? "Success" : `Request failed with status ${response.status}`,
+      data: null as T,
+    };
+  }
+
+  try {
+    return JSON.parse(text) as ApiResponse<T>;
+  } catch {
+    return {
+      success: false,
+      message: response.ok ? "Invalid API response" : text,
+      data: null as T,
+    };
+  }
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
@@ -69,7 +90,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     next: { revalidate: 30 },
   });
 
-  const payload = (await response.json()) as ApiResponse<T>;
+  const payload = await parseApiResponse<T>(response);
   if (!response.ok || !payload.success) {
     throw new Error(payload.message || "Request failed");
   }
@@ -102,7 +123,7 @@ export async function adminRequest<T>(path: string, options?: RequestInit): Prom
     },
   });
 
-  const payload = (await response.json()) as ApiResponse<T>;
+  const payload = await parseApiResponse<T>(response);
   if (!response.ok || !payload.success) {
     throw new Error(payload.message || "Request failed");
   }
@@ -266,7 +287,7 @@ export async function importRestockCsv(file: File, importType: "low_stock" | "ou
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,
   });
-  const payload = (await response.json()) as ApiResponse<{ history: StockImportHistory; errors: StockImportHistory["errors"] }>;
+  const payload = await parseApiResponse<{ history: StockImportHistory; errors: StockImportHistory["errors"] }>(response);
   if (!response.ok || !payload.success) throw new Error(payload.message || "Import failed");
   return payload.data;
 }
@@ -284,7 +305,7 @@ export async function downloadInventoryDemo(type: "low_stock" | "out_of_stock") 
 export async function createPublicOrder(payload: {
   customer: { name: string; email: string; phone: string; address: string; city: string; postalCode?: string };
   items: Array<{ productId: string; quantity: number }>;
-  paymentMethod: "cod" | "manual";
+  paymentMethod: "cod" | "manual" | "bkash" | "nagad" | "card";
   notes?: string;
 }) {
   return request<{ orderNumber: string; grandTotal: number }>("/orders", {

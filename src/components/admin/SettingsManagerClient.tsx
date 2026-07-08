@@ -37,41 +37,59 @@ export function SettingsManagerClient() {
   async function handleStore(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const data = await updateStoreSettings({
-      shopName: String(form.get("shopName") || ""),
-      contactPhone: String(form.get("contactPhone") || ""),
-      email: String(form.get("email") || ""),
-      address: String(form.get("address") || ""),
-      logo: store?.logo || "",
-      socialLinks: {
-        facebook: String(form.get("facebook") || ""),
-        instagram: String(form.get("instagram") || ""),
-        youtube: String(form.get("youtube") || ""),
-        tiktok: String(form.get("tiktok") || ""),
-      },
-    });
-    setStore(data);
-    setSuccess("Store settings saved");
+    setError("");
+    setSuccess("");
+    try {
+      const data = await updateStoreSettings({
+        shopName: String(form.get("shopName") || ""),
+        contactPhone: String(form.get("contactPhone") || ""),
+        email: String(form.get("email") || ""),
+        address: String(form.get("address") || ""),
+        logo: store?.logo || "",
+        socialLinks: {
+          facebook: String(form.get("facebook") || ""),
+          instagram: String(form.get("instagram") || ""),
+          youtube: String(form.get("youtube") || ""),
+          tiktok: String(form.get("tiktok") || ""),
+        },
+      });
+      setStore(data);
+      setSuccess("Store settings saved");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Store settings could not be saved");
+    }
   }
 
   async function savePaymentMethods() {
-    setMethods(await updatePaymentMethods(methods));
-    setSuccess("Payment methods saved");
+    setError("");
+    setSuccess("");
+    try {
+      setMethods(await updatePaymentMethods(methods));
+      setSuccess("Payment methods saved");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Payment methods could not be saved");
+    }
   }
 
   async function handleDelivery(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const area = await createDeliveryArea({
-      district: String(form.get("district") || ""),
-      area: String(form.get("area") || ""),
-      upazila: String(form.get("upazila") || ""),
-      charge: Number(form.get("charge") || 0),
-      status: "active",
-    });
-    setAreas((current) => [...current, area]);
-    event.currentTarget.reset();
-    setSuccess("Delivery area created");
+    setError("");
+    setSuccess("");
+    try {
+      const area = await createDeliveryArea({
+        district: String(form.get("district") || ""),
+        area: String(form.get("area") || ""),
+        upazila: String(form.get("upazila") || ""),
+        charge: Number(form.get("charge") || 0),
+        status: "active",
+      });
+      setAreas((current) => [...current, area]);
+      event.currentTarget.reset();
+      setSuccess("Delivery area created");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delivery area could not be created");
+    }
   }
 
   if (loading) return <LoadingState label="Loading settings..." />;

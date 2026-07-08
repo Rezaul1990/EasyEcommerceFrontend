@@ -16,6 +16,7 @@ export function OrdersManagerClient() {
   const [selected, setSelected] = useState<Order | null>(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -48,45 +49,73 @@ export function OrdersManagerClient() {
   }
 
   async function handleStatus(order: Order, status: string) {
-    replaceOrder(await updateAdminOrderStatus(order._id, status));
+    setError("");
+    setSuccess("");
+    try {
+      replaceOrder(await updateAdminOrderStatus(order._id, status));
+      setSuccess("Order status saved");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Order status could not be saved");
+    }
   }
 
   async function handlePayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected) return;
     const form = new FormData(event.currentTarget);
-    replaceOrder(await updateAdminOrderPayment(selected._id, {
-      paymentStatus: String(form.get("paymentStatus") || "unpaid"),
-      paidAmount: Number(form.get("paidAmount") || 0),
-      dueAmount: Number(form.get("dueAmount") || 0),
-      refundAmount: Number(form.get("refundAmount") || 0),
-      note: String(form.get("note") || ""),
-    }));
+    setError("");
+    setSuccess("");
+    try {
+      replaceOrder(await updateAdminOrderPayment(selected._id, {
+        paymentStatus: String(form.get("paymentStatus") || "unpaid"),
+        paidAmount: Number(form.get("paidAmount") || 0),
+        dueAmount: Number(form.get("dueAmount") || 0),
+        refundAmount: Number(form.get("refundAmount") || 0),
+        note: String(form.get("note") || ""),
+      }));
+      setSuccess("Payment saved");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Payment could not be saved");
+    }
   }
 
   async function handleCourier(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected) return;
     const form = new FormData(event.currentTarget);
-    replaceOrder(await updateAdminOrderCourier(selected._id, {
-      courier: String(form.get("courier") || ""),
-      courierCharge: Number(form.get("courierCharge") || 0),
-      trackingNumber: String(form.get("trackingNumber") || ""),
-    }));
+    setError("");
+    setSuccess("");
+    try {
+      replaceOrder(await updateAdminOrderCourier(selected._id, {
+        courier: String(form.get("courier") || ""),
+        courierCharge: Number(form.get("courierCharge") || 0),
+        trackingNumber: String(form.get("trackingNumber") || ""),
+      }));
+      setSuccess("Courier saved");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Courier could not be saved");
+    }
   }
 
   async function handleCourierCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const courier = await createAdminCourier({
-      name: String(form.get("name") || ""),
-      phone: String(form.get("phone") || ""),
-      contactPerson: String(form.get("contactPerson") || ""),
-      defaultCharge: Number(form.get("defaultCharge") || 0),
-      status: "active",
-    });
-    setCouriers((current) => [...current, courier].sort((a, b) => a.name.localeCompare(b.name)));
-    event.currentTarget.reset();
+    setError("");
+    setSuccess("");
+    try {
+      const courier = await createAdminCourier({
+        name: String(form.get("name") || ""),
+        phone: String(form.get("phone") || ""),
+        contactPerson: String(form.get("contactPerson") || ""),
+        defaultCharge: Number(form.get("defaultCharge") || 0),
+        status: "active",
+      });
+      setCouriers((current) => [...current, courier].sort((a, b) => a.name.localeCompare(b.name)));
+      event.currentTarget.reset();
+      setSuccess("Courier created");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Courier could not be created");
+    }
   }
 
   if (loading) return <LoadingState label="Loading orders..." />;
@@ -94,6 +123,7 @@ export function OrdersManagerClient() {
   return (
     <div className="space-y-5">
       {error ? <ErrorState message={error} /> : null}
+      {success ? <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{success}</p> : null}
       <section className="rounded-lg border border-slate-200 bg-white">
         <div className="relative border-b border-slate-200 p-4">
           <Search className="absolute left-7 top-1/2 -translate-y-1/2 text-slate-400" size={17} />

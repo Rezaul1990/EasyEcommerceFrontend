@@ -126,18 +126,39 @@ export function CatalogManagerClient() {
   }
 
   async function removeCategory(id: string) {
-    await deleteAdminCategory(id);
-    setCategories((current) => current.filter((category) => category._id !== id));
+    setError("");
+    setSuccess("");
+    try {
+      await deleteAdminCategory(id);
+      setCategories((current) => current.filter((category) => category._id !== id));
+      setSuccess("Category deleted");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Category could not be deleted");
+    }
   }
 
   async function archiveProduct(id: string) {
-    const product = await archiveAdminProduct(id);
-    setProducts((current) => current.map((item) => (item._id === id ? product : item)));
+    setError("");
+    setSuccess("");
+    try {
+      const product = await archiveAdminProduct(id);
+      setProducts((current) => current.map((item) => (item._id === id ? product : item)));
+      setSuccess("Product archived");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Product could not be archived");
+    }
   }
 
   async function removeCoupon(id: string) {
-    await deleteAdminCoupon(id);
-    setCoupons((current) => current.filter((coupon) => coupon._id !== id));
+    setError("");
+    setSuccess("");
+    try {
+      await deleteAdminCoupon(id);
+      setCoupons((current) => current.filter((coupon) => coupon._id !== id));
+      setSuccess("Coupon deleted");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Coupon could not be deleted");
+    }
   }
 
   if (loading) return <LoadingState label="Loading catalog..." />;

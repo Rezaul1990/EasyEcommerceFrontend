@@ -33,7 +33,7 @@ export function CheckoutClient() {
           postalCode: String(form.get("postalCode") || ""),
         },
         items: items.map((item) => ({ productId: item._id, quantity: item.quantity })),
-        paymentMethod: String(form.get("paymentMethod") || "cod") as "cod" | "manual",
+        paymentMethod: String(form.get("paymentMethod") || "cod") as "cod" | "manual" | "bkash" | "nagad" | "card",
         notes: String(form.get("notes") || ""),
       });
       setOrderNumber(order.orderNumber);
@@ -65,7 +65,7 @@ export function CheckoutClient() {
         <label className="space-y-2 text-sm font-medium text-slate-700"><span>Phone</span><input name="phone" className="h-11 w-full rounded-md border border-slate-300 px-3 text-slate-950" required /></label>
         <label className="space-y-2 text-sm font-medium text-slate-700"><span>City</span><input name="city" className="h-11 w-full rounded-md border border-slate-300 px-3 text-slate-950" required /></label>
         <label className="space-y-2 text-sm font-medium text-slate-700"><span>Postal code</span><input name="postalCode" className="h-11 w-full rounded-md border border-slate-300 px-3 text-slate-950" /></label>
-        <label className="space-y-2 text-sm font-medium text-slate-700"><span>Payment</span><select name="paymentMethod" className="h-11 w-full rounded-md border border-slate-300 px-3 text-slate-950"><option value="cod">Cash on delivery</option><option value="manual">Manual payment</option></select></label>
+        <label className="space-y-2 text-sm font-medium text-slate-700"><span>Payment</span><select name="paymentMethod" className="h-11 w-full rounded-md border border-slate-300 px-3 text-slate-950"><option value="cod">Cash on delivery</option><option value="bkash">bKash</option><option value="nagad">Nagad</option><option value="card">Card</option><option value="manual">Manual payment</option></select></label>
         <label className="space-y-2 text-sm font-medium text-slate-700 sm:col-span-2"><span>Delivery address</span><textarea name="address" className="min-h-28 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950" required /></label>
         <label className="space-y-2 text-sm font-medium text-slate-700 sm:col-span-2"><span>Note</span><textarea name="notes" className="min-h-20 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-950" /></label>
         <button disabled={loading || !items.length} className="rounded-md bg-teal-600 px-5 py-3 text-sm font-semibold text-white disabled:bg-slate-400 sm:col-span-2">{loading ? "Placing order..." : "Place order"}</button>
