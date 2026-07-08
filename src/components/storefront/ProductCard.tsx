@@ -1,17 +1,20 @@
 "use client";
 
 import type { Product } from "@/types/ecommerce";
+import { resolveImageUrl } from "@/utils/imageUrl";
 import { addToCart, toggleWishlist } from "@/utils/guestStore";
 import { Heart, ShoppingCart } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
 export function ProductCard({ product }: { product: Product }) {
+  const image = resolveImageUrl(product.imageUrls?.[0]);
+
   return (
     <article className="overflow-hidden rounded-lg border border-slate-200 bg-white">
       <Link href={`/products/${product.slug}`} className="block aspect-[4/3] overflow-hidden bg-slate-100">
         <Image
-          src={product.imageUrls[0] || "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=80"}
+          src={image}
           alt={product.name}
           width={900}
           height={675}
