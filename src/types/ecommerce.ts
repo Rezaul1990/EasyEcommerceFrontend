@@ -30,8 +30,24 @@ export type Product = {
   stock?: number;
   reservedStock?: number;
   galleryImages?: string[];
+  imageAssets?: ImageAsset[];
   status: "draft" | "active" | "inactive" | "archived";
   isFeatured: boolean;
+};
+
+export type ImageAsset = {
+  url: string;
+  secureUrl?: string;
+  originalUrl?: string;
+  publicId?: string;
+  provider?: string;
+  width?: number | null;
+  height?: number | null;
+  format?: string;
+  bytes?: number | null;
+  fileName?: string;
+  size?: number;
+  mimeType?: string;
 };
 
 export type ApiResponse<T> = {

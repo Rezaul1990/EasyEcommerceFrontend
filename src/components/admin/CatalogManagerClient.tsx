@@ -2,10 +2,11 @@
 
 import { DataTable } from "@/components/admin/ui/DataTable";
 import { ErrorState, LoadingState } from "@/components/admin/ui/States";
-import { archiveAdminProduct, createAdminCategory, createAdminCoupon, createAdminProduct, deleteAdminCategory, deleteAdminCoupon, getAdminCategories, getAdminCoupons, getAdminProducts } from "@/services/apiClient";
-import type { Category, Coupon, Product } from "@/types/ecommerce";
-import { Archive, FolderPlus, Plus, TicketPercent, Trash2 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { archiveAdminProduct, createAdminCategory, createAdminCoupon, createAdminProduct, deleteAdminCategory, deleteAdminCoupon, deleteAdminProductImage, getAdminCategories, getAdminCoupons, getAdminProducts, uploadAdminProductImages } from "@/services/apiClient";
+import type { Category, Coupon, ImageAsset, Product } from "@/types/ecommerce";
+import { Archive, FolderPlus, ImageIcon, Loader2, Plus, TicketPercent, Trash2, X } from "lucide-react";
+import Image from "next/image";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 
 const moneyFormatter = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
@@ -19,6 +20,8 @@ export function CatalogManagerClient() {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [uploadedImageAssets, setUploadedImageAssets] = useState<ImageAsset[]>([]);
 
   useEffect(() => {
     let ignore = false;
@@ -87,14 +90,49 @@ export function CatalogManagerClient() {
         isFeatured: form.get("isFeatured") === "on",
         discountType: String(form.get("discountType") || "none") as "none" | "fixed" | "percentage",
         discountValue: Number(form.get("discountValue") || 0),
+        imageUrls: uploadedImageAssets.map((asset) => asset.url),
+        galleryImages: uploadedImageAssets.map((asset) => asset.url),
+        imageAssets: uploadedImageAssets,
       });
       setProducts((current) => [product, ...current]);
       event.currentTarget.reset();
+      setUploadedImageAssets([]);
       setSuccess("Product created");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Product could not be created");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleProductImageUpload(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    if (!files.length) return;
+
+    setUploadingImages(true);
+    setError("");
+    setSuccess("");
+    try {
+      const assets = await uploadAdminProductImages(files);
+      setUploadedImageAssets((current) => [...current, ...assets].slice(0, 10));
+      setSuccess("Product image uploaded");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Product image could not be uploaded");
+    } finally {
+      setUploadingImages(false);
+    }
+  }
+
+  async function removeUploadedProductImage(asset: ImageAsset) {
+    setError("");
+    setSuccess("");
+    setUploadedImageAssets((current) => current.filter((item) => item.url !== asset.url));
+    try {
+      if (asset.publicId) await deleteAdminProductImage(asset);
+      setSuccess("Product image removed");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Image was removed from the form, but storage cleanup failed");
     }
   }
 
@@ -199,6 +237,27 @@ export function CatalogManagerClient() {
               </div>
               <textarea name="shortDescription" className="min-h-20 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Short description" />
               <textarea name="description" className="min-h-24 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Description" required />
+              <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-3">
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
+                  {uploadingImages ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} />}
+                  {uploadingImages ? "Uploading..." : "Select product images"}
+                  <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="sr-only" onChange={handleProductImageUpload} disabled={uploadingImages || uploadedImageAssets.length >= 10} />
+                </label>
+                {uploadedImageAssets.length ? (
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {uploadedImageAssets.map((asset) => (
+                      <div key={`${asset.provider || "image"}-${asset.publicId || asset.url}`} className="group relative aspect-square overflow-hidden rounded-md border border-slate-200 bg-white">
+                        <Image src={asset.url} alt="Uploaded product" fill sizes="120px" className="object-cover" />
+                        <button type="button" onClick={() => removeUploadedProductImage(asset)} className="absolute right-1 top-1 inline-flex size-7 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm hover:text-rose-600">
+                          <X size={15} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-500">JPG, PNG, WEBP, GIF. Max 5MB each, up to 10 images.</p>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <select name="discountType" className="h-10 rounded-md border border-slate-300 px-3 text-sm">
                   <option value="none">No discount</option>
@@ -216,7 +275,7 @@ export function CatalogManagerClient() {
                 <input type="checkbox" name="isFeatured" className="size-4 rounded border-slate-300 text-teal-600" />
                 Featured product
               </label>
-              <button disabled={saving} className="rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-400">Create product</button>
+              <button disabled={saving || uploadingImages} className="rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-400">Create product</button>
             </form>
           </section>
           <section className="rounded-lg border border-slate-200 bg-white">
@@ -227,7 +286,18 @@ export function CatalogManagerClient() {
               rows={filteredProducts}
               getRowKey={(row) => row._id}
               columns={[
-                { key: "name", header: "Product", render: (row) => <span className="font-medium text-slate-950">{row.name}</span> },
+                {
+                  key: "name",
+                  header: "Product",
+                  render: (row) => (
+                    <div className="flex items-center gap-3">
+                      <div className="relative size-11 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
+                        {row.imageUrls?.[0] ? <Image src={row.imageUrls[0]} alt={row.name} fill sizes="44px" className="object-cover" /> : <div className="flex h-full w-full items-center justify-center text-slate-400"><ImageIcon size={16} /></div>}
+                      </div>
+                      <span className="font-medium text-slate-950">{row.name}</span>
+                    </div>
+                  ),
+                },
                 { key: "sku", header: "SKU", render: (row) => <span className="text-slate-600">{row.sku}</span> },
                 { key: "stock", header: "Stock", render: (row) => <span>{row.stockQuantity ?? row.stock ?? 0}</span> },
                 { key: "price", header: "Price", render: (row) => <span>{moneyFormatter.format(row.finalPrice || row.price)}</span> },

@@ -1,4 +1,4 @@
-import type { AdminUser, ApiResponse, Category, Coupon, CourierCompany, DashboardSummary, DeliveryArea, InventoryMovement, InventoryRow, InviteResponse, Order, PaymentMethodSetting, Permission, Product, ReportSummary, Role, SidebarItem, StockImportHistory, StoreSetting } from "@/types/ecommerce";
+import type { AdminUser, ApiResponse, Category, Coupon, CourierCompany, DashboardSummary, DeliveryArea, ImageAsset, InventoryMovement, InventoryRow, InviteResponse, Order, PaymentMethodSetting, Permission, Product, ReportSummary, Role, SidebarItem, StockImportHistory, StoreSetting } from "@/types/ecommerce";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
@@ -233,8 +233,32 @@ export async function createAdminProduct(payload: {
   isFeatured: boolean;
   discountType: "none" | "fixed" | "percentage";
   discountValue: number;
+  imageUrls?: string[];
+  galleryImages?: string[];
+  imageAssets?: ImageAsset[];
 }) {
   return adminRequest<Product>("/admin/products", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function uploadAdminProductImages(files: File[]) {
+  const token = getAdminToken();
+  const formData = new FormData();
+  files.forEach((file) => formData.append("images", file));
+  const response = await fetch(`${API_URL}/admin/uploads/images`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+  const payload = await parseApiResponse<ImageAsset[]>(response);
+  if (!response.ok || !payload.success) throw new Error(payload.message || "Image upload failed");
+  return payload.data;
+}
+
+export async function deleteAdminProductImage(asset: Pick<ImageAsset, "publicId" | "provider">) {
+  return adminRequest<{ deleted: boolean }>("/admin/uploads/images", {
+    method: "DELETE",
+    body: JSON.stringify({ publicId: asset.publicId, provider: asset.provider }),
+  });
 }
 
 export async function archiveAdminProduct(id: string) {
