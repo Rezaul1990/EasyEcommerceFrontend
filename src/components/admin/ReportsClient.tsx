@@ -2,9 +2,9 @@
 
 import { DataTable } from "@/components/admin/ui/DataTable";
 import { ErrorState, LoadingState } from "@/components/admin/ui/States";
-import { getReport } from "@/services/apiClient";
-import type { ReportSummary } from "@/types/ecommerce";
-import { Activity, Banknote, Boxes, CalendarDays, ClipboardList, CreditCard, PackageSearch, RotateCcw, Truck, WalletCards } from "lucide-react";
+import { getAdminCategories, getAdminCouriers, getReport } from "@/services/apiClient";
+import type { Category, CourierCompany, ReportSummary } from "@/types/ecommerce";
+import { Activity, Banknote, Boxes, CalendarDays, ClipboardList, CreditCard, PackageSearch, RefreshCcw, RotateCcw, Truck, WalletCards, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 const reportTabs = [
@@ -100,9 +100,15 @@ export function ReportsClient() {
   const [status, setStatus] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [courier, setCourier] = useState("");
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [couriers, setCouriers] = useState<CourierCompany[]>([]);
+  const [refreshIndex, setRefreshIndex] = useState(0);
   const [report, setReport] = useState<ReportSummary | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const activeFilterCount = [status, paymentStatus, paymentMethod, categoryId, courier, quickDate === "custom" ? startDate : "", quickDate === "custom" ? endDate : ""].filter(Boolean).length;
 
   const filters = useMemo(() => ({
     quickDate: quickDate === "custom" ? "" : quickDate,
@@ -111,7 +117,28 @@ export function ReportsClient() {
     status,
     paymentStatus,
     paymentMethod,
-  }), [quickDate, startDate, endDate, status, paymentStatus, paymentMethod]);
+    categoryId,
+    courier,
+  }), [quickDate, startDate, endDate, status, paymentStatus, paymentMethod, categoryId, courier]);
+
+  useEffect(() => {
+    let ignore = false;
+    Promise.all([getAdminCategories(), getAdminCouriers()])
+      .then(([categoryData, courierData]) => {
+        if (ignore) return;
+        setCategories(categoryData);
+        setCouriers(courierData);
+      })
+      .catch(() => {
+        if (!ignore) {
+          setCategories([]);
+          setCouriers([]);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -135,7 +162,18 @@ export function ReportsClient() {
     return () => {
       ignore = true;
     };
-  }, [activeType, filters]);
+  }, [activeType, filters, refreshIndex]);
+
+  function resetFilters() {
+    setQuickDate("today");
+    setStartDate("");
+    setEndDate("");
+    setStatus("");
+    setPaymentStatus("");
+    setPaymentMethod("");
+    setCategoryId("");
+    setCourier("");
+  }
 
   const totals = report?.totals || {};
   const activeTab = reportTabs.find((tab) => tab.key === activeType) || reportTabs[0];
@@ -161,7 +199,7 @@ export function ReportsClient() {
             ))}
           </div>
         </div>
-        <div className="mt-4 grid gap-3 lg:grid-cols-5">
+        <div className="mt-4 grid gap-3 lg:grid-cols-4 xl:grid-cols-7">
           <select value={status} onChange={(event) => setStatus(event.target.value)} className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700">
             <option value="">All order statuses</option>
             {orderStatuses.map((item) => <option key={item} value={item}>{title(item)}</option>)}
@@ -174,8 +212,29 @@ export function ReportsClient() {
             <option value="">All payment methods</option>
             {paymentMethods.map((item) => <option key={item} value={item}>{title(item)}</option>)}
           </select>
+          <select value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700">
+            <option value="">All categories</option>
+            {categories.map((category) => <option key={category._id} value={category._id}>{category.name}</option>)}
+          </select>
+          <select value={courier} onChange={(event) => setCourier(event.target.value)} className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700">
+            <option value="">All couriers</option>
+            {couriers.map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}
+          </select>
           <input disabled={quickDate !== "custom"} type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm disabled:bg-slate-100 disabled:text-slate-400" />
           <input disabled={quickDate !== "custom"} type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm disabled:bg-slate-100 disabled:text-slate-400" />
+        </div>
+        <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-500">{activeFilterCount ? `${activeFilterCount} active filter${activeFilterCount > 1 ? "s" : ""}` : "Showing full shop overview for the selected date range"}</p>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setRefreshIndex((value) => value + 1)} className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+              <RefreshCcw size={16} />
+              Refresh
+            </button>
+            <button onClick={resetFilters} className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+              <X size={16} />
+              Reset
+            </button>
+          </div>
         </div>
       </section>
 
