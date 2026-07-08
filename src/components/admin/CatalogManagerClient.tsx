@@ -308,7 +308,10 @@ export function CatalogManagerClient() {
                 <input name="lowStockThreshold" type="number" min="0" defaultValue={editingProduct?.lowStockThreshold ?? 5} className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Low stock" />
               </div>
               <textarea name="shortDescription" defaultValue={editingProduct?.shortDescription || ""} className="min-h-20 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Short description" />
-              <textarea name="description" defaultValue={editingProduct?.description || ""} className="min-h-24 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Description" required />
+              <div>
+                <textarea name="description" defaultValue={editingProduct?.description || ""} minLength={10} className="min-h-24 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Description" required />
+                <p className="mt-1 text-xs text-slate-500">Minimum 10 characters.</p>
+              </div>
               <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-3">
                 <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
                   {uploadingImages ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} />}
