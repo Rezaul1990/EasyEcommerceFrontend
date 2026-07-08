@@ -366,8 +366,13 @@ export async function createDeliveryArea(payload: Omit<DeliveryArea, "_id">) {
   return adminRequest<DeliveryArea>("/admin/settings/delivery-areas", { method: "POST", body: JSON.stringify(payload) });
 }
 
-export async function getReport(type: string) {
-  return adminRequest<ReportSummary>(`/admin/reports/${type}`);
+export async function getReport(type: string, filters?: Record<string, string>) {
+  const params = new URLSearchParams();
+  Object.entries(filters || {}).forEach(([key, value]) => {
+    if (value) params.set(key, value);
+  });
+  const query = params.toString();
+  return adminRequest<ReportSummary>(`/admin/reports/${type}${query ? `?${query}` : ""}`);
 }
 
 export async function getAdminSummary() {

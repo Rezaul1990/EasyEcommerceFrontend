@@ -254,5 +254,52 @@ export type DeliveryArea = {
 export type ReportSummary = {
   type: string;
   totals: Record<string, number>;
+  filters?: Record<string, string>;
+  breakdowns?: {
+    orderStatuses?: Array<{ key: string; label: string; value: number }>;
+    paymentStatuses?: Array<{ key: string; label: string; value: number }>;
+    paymentMethods?: Array<{ key: string; label: string; value: number }>;
+    couriers?: Array<{ key: string; label: string; value: number }>;
+    categories?: Array<{ key: string; label: string; value: number }>;
+  };
+  rows?: {
+    recentOrders?: Array<{
+      id: string;
+      orderNumber: string;
+      customer: string;
+      phone: string;
+      status: string;
+      paymentStatus: string;
+      paymentMethod: string;
+      courier?: string;
+      grandTotal: number;
+      paidAmount: number;
+      dueAmount: number;
+      refundAmount: number;
+      createdAt: string;
+    }>;
+    products?: Array<{
+      id: string;
+      name: string;
+      sku: string;
+      category?: string;
+      status: string;
+      stock: number;
+      reservedStock: number;
+      lowStockThreshold: number;
+      price: number;
+      bestSellingScore: number;
+    }>;
+    coupons?: Array<{
+      id: string;
+      code: string;
+      title: string;
+      status: string;
+      discountType: string;
+      discountValue: number;
+      minimumOrderAmount: number;
+      expiryDate: string;
+    }>;
+  };
   generatedAt: string;
 };
