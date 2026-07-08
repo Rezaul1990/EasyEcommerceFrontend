@@ -4,7 +4,7 @@ import { DataTable } from "@/components/admin/ui/DataTable";
 import { ErrorState, LoadingState } from "@/components/admin/ui/States";
 import { archiveAdminProduct, createAdminCategory, createAdminCoupon, createAdminProduct, deleteAdminCategory, deleteAdminCoupon, deleteAdminProductImage, getAdminCategories, getAdminCoupons, getAdminProducts, uploadAdminProductImages } from "@/services/apiClient";
 import type { Category, Coupon, ImageAsset, Product } from "@/types/ecommerce";
-import { resolveImageUrl } from "@/utils/imageUrl";
+import { resolveImageUrl, shouldBypassImageOptimizer } from "@/utils/imageUrl";
 import { Archive, FolderPlus, ImageIcon, Loader2, Plus, TicketPercent, Trash2, X } from "lucide-react";
 import Image from "next/image";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
@@ -251,7 +251,7 @@ export function CatalogManagerClient() {
                   <div className="mt-3 grid grid-cols-3 gap-2">
                     {uploadedImageAssets.map((asset) => (
                       <div key={`${asset.provider || "image"}-${asset.publicId || asset.url}`} className="group relative aspect-square overflow-hidden rounded-md border border-slate-200 bg-white">
-                        <Image src={resolveImageUrl(asset.url)} alt="Uploaded product" fill sizes="120px" className="object-cover" />
+                        <Image src={resolveImageUrl(asset.url)} alt="Uploaded product" fill sizes="120px" unoptimized={shouldBypassImageOptimizer(resolveImageUrl(asset.url))} className="object-cover" />
                         <button type="button" onClick={() => removeUploadedProductImage(asset)} className="absolute right-1 top-1 inline-flex size-7 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm hover:text-rose-600">
                           <X size={15} />
                         </button>
@@ -296,7 +296,7 @@ export function CatalogManagerClient() {
                   render: (row) => (
                     <div className="flex items-center gap-3">
                       <div className="relative size-11 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
-                        {row.imageUrls?.[0] ? <Image src={resolveImageUrl(row.imageUrls[0])} alt={row.name} fill sizes="44px" className="object-cover" /> : <div className="flex h-full w-full items-center justify-center text-slate-400"><ImageIcon size={16} /></div>}
+                        {row.imageUrls?.[0] ? <Image src={resolveImageUrl(row.imageUrls[0])} alt={row.name} fill sizes="44px" unoptimized={shouldBypassImageOptimizer(resolveImageUrl(row.imageUrls[0]))} className="object-cover" /> : <div className="flex h-full w-full items-center justify-center text-slate-400"><ImageIcon size={16} /></div>}
                       </div>
                       <span className="font-medium text-slate-950">{row.name}</span>
                     </div>

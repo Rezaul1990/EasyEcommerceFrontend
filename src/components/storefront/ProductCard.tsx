@@ -1,7 +1,7 @@
 "use client";
 
 import type { Product } from "@/types/ecommerce";
-import { resolveImageUrl } from "@/utils/imageUrl";
+import { resolveImageUrl, shouldBypassImageOptimizer } from "@/utils/imageUrl";
 import { addToCart, toggleWishlist } from "@/utils/guestStore";
 import { Heart, ShoppingCart } from "lucide-react";
 import Image from "next/image";
@@ -18,6 +18,7 @@ export function ProductCard({ product }: { product: Product }) {
           alt={product.name}
           width={900}
           height={675}
+          unoptimized={shouldBypassImageOptimizer(image)}
           className="h-full w-full object-cover transition duration-300 hover:scale-105"
         />
       </Link>

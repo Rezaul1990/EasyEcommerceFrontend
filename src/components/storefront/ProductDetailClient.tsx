@@ -1,7 +1,7 @@
 "use client";
 
 import type { Product } from "@/types/ecommerce";
-import { resolveImageUrl } from "@/utils/imageUrl";
+import { resolveImageUrl, shouldBypassImageOptimizer } from "@/utils/imageUrl";
 import { addToCart, toggleWishlist } from "@/utils/guestStore";
 import { Heart, ShoppingCart } from "lucide-react";
 import Image from "next/image";
@@ -16,7 +16,7 @@ export function ProductDetailClient({ product }: { product: Product }) {
   return (
     <main className="mx-auto grid max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-2 lg:px-8">
       <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-slate-100">
-        <Image src={image} alt={product.name} fill className="object-cover" />
+        <Image src={image} alt={product.name} fill unoptimized={shouldBypassImageOptimizer(image)} className="object-cover" />
       </div>
       <section className="flex flex-col justify-center">
         <p className="text-sm font-semibold uppercase tracking-wide text-teal-700">{product.categoryId?.name || "Catalog"}</p>

@@ -16,4 +16,8 @@ export function resolveImageUrl(url?: string | null, fallback = FALLBACK_PRODUCT
   return url;
 }
 
+export function shouldBypassImageOptimizer(url: string) {
+  return url.startsWith("http://localhost:") || url.startsWith("http://127.0.0.1:");
+}
+
 export { FALLBACK_PRODUCT_IMAGE };
