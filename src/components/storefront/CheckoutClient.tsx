@@ -6,6 +6,8 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { GuestCartItem } from "@/utils/guestStore";
 
+const mongoIdPattern = /^[a-f\d]{24}$/i;
+
 export function CheckoutClient() {
   const [items, setItems] = useState<GuestCartItem[]>([]);
   const [error, setError] = useState("");
@@ -14,7 +16,17 @@ export function CheckoutClient() {
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + (item.finalPrice || item.price) * item.quantity, 0), [items]);
 
   useEffect(() => {
-    queueMicrotask(() => setItems(getCart()));
+    queueMicrotask(() => {
+      const cartItems = getCart();
+      const validItems = cartItems.filter((item) => mongoIdPattern.test(item._id));
+      if (validItems.length !== cartItems.length) {
+        clearCart();
+        setItems([]);
+        setError("Your cart had old product data. Please add the product again and place the order.");
+        return;
+      }
+      setItems(validItems);
+    });
   }, []);
 
   async function submitOrder(event: FormEvent<HTMLFormElement>) {
@@ -23,6 +35,12 @@ export function CheckoutClient() {
     setError("");
     const form = new FormData(event.currentTarget);
     try {
+      if (items.some((item) => !mongoIdPattern.test(item._id))) {
+        clearCart();
+        setItems([]);
+        setError("Your cart had old product data. Please add the product again and place the order.");
+        return;
+      }
       const order = await createPublicOrder({
         customer: {
           name: String(form.get("name") || ""),
