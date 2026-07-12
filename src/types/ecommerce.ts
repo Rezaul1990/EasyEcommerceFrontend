@@ -173,15 +173,33 @@ export type InventoryRow = {
   productId: string;
   productName: string;
   productType: "simple" | "variant";
+  productStatus?: "draft" | "active" | "inactive" | "archived";
   variantId?: string | null;
   variantInfo?: string;
   sku: string;
+  category?: Category;
   stock: number;
   reservedStock: number;
   availableStock: number;
   lowStockThreshold: number;
   status: "in_stock" | "low_stock" | "out_of_stock";
   updatedAt: string;
+};
+
+export type InventoryMeta = {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+  summary: {
+    totalItems: number;
+    totalStock: number;
+    reservedStock: number;
+    availableStock: number;
+    lowStock: number;
+    outOfStock: number;
+    reservedItems: number;
+  };
 };
 
 export type InventoryMovement = {
@@ -197,6 +215,13 @@ export type InventoryMovement = {
   note?: string;
   createdBy?: AdminUser;
   createdAt: string;
+};
+
+export type MovementMeta = {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
 };
 
 export type StockImportHistory = {

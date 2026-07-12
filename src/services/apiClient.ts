@@ -1,4 +1,4 @@
-import type { AdminUser, ApiResponse, Category, Coupon, CourierCompany, DashboardSummary, DeliveryArea, ImageAsset, InventoryMovement, InventoryRow, InviteResponse, Order, OrdersMeta, PaymentMethodSetting, Permission, Product, ReportSummary, Role, SidebarItem, StockImportHistory, StoreSetting } from "@/types/ecommerce";
+import type { AdminUser, ApiResponse, Category, Coupon, CourierCompany, DashboardSummary, DeliveryArea, ImageAsset, InventoryMeta, InventoryMovement, InventoryRow, InviteResponse, MovementMeta, Order, OrdersMeta, PaymentMethodSetting, Permission, Product, ReportSummary, Role, SidebarItem, StockImportHistory, StoreSetting } from "@/types/ecommerce";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
@@ -333,14 +333,31 @@ export async function deleteAdminCoupon(id: string) {
   return adminRequest<Coupon>(`/admin/coupons/${id}`, { method: "DELETE" });
 }
 
-export async function getInventory(status?: "low_stock" | "out_of_stock") {
-  if (status === "low_stock") return adminRequest<InventoryRow[]>("/admin/inventory/low-stock");
-  if (status === "out_of_stock") return adminRequest<InventoryRow[]>("/admin/inventory/out-of-stock");
-  return adminRequest<InventoryRow[]>("/admin/inventory");
+export async function getInventory(filters?: Record<string, string>) {
+  const params = new URLSearchParams();
+  Object.entries(filters || {}).forEach(([key, value]) => {
+    if (value) params.set(key, value);
+  });
+  return adminRequestWithMeta<InventoryRow[], InventoryMeta>(`/admin/inventory${params.toString() ? `?${params.toString()}` : ""}`);
 }
 
-export async function getInventoryMovements() {
-  return adminRequest<InventoryMovement[]>("/admin/inventory/movements");
+export async function getInventoryMovements(filters?: Record<string, string>) {
+  const params = new URLSearchParams();
+  Object.entries(filters || {}).forEach(([key, value]) => {
+    if (value) params.set(key, value);
+  });
+  return adminRequestWithMeta<InventoryMovement[], MovementMeta>(`/admin/inventory/movements${params.toString() ? `?${params.toString()}` : ""}`);
+}
+
+export async function adjustInventoryStock(payload: {
+  productId: string;
+  variantId?: string;
+  adjustmentType: "set" | "increase" | "decrease";
+  quantity: number;
+  lowStockThreshold?: number;
+  note?: string;
+}) {
+  return adminRequest<{ row: InventoryRow; movement: InventoryMovement; productId: string }>("/admin/inventory/adjust", { method: "POST", body: JSON.stringify(payload) });
 }
 
 export async function getStockImportHistory() {
