@@ -1,4 +1,4 @@
-import type { AdminUser, ApiResponse, Category, Coupon, CourierCompany, DashboardSummary, DeliveryArea, ImageAsset, InventoryMovement, InventoryRow, InviteResponse, Order, PaymentMethodSetting, Permission, Product, ReportSummary, Role, SidebarItem, StockImportHistory, StoreSetting } from "@/types/ecommerce";
+import type { AdminUser, ApiResponse, Category, Coupon, CourierCompany, DashboardSummary, DeliveryArea, ImageAsset, InventoryMovement, InventoryRow, InviteResponse, Order, OrdersMeta, PaymentMethodSetting, Permission, Product, ReportSummary, Role, SidebarItem, StockImportHistory, StoreSetting } from "@/types/ecommerce";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
@@ -136,6 +136,24 @@ export async function adminRequest<T>(path: string, options?: RequestInit): Prom
     throw new Error(formatApiError(payload, "Request failed"));
   }
   return payload.data;
+}
+
+export async function adminRequestWithMeta<T, M = Record<string, unknown>>(path: string, options?: RequestInit): Promise<{ data: T; meta: M }> {
+  const token = getAdminToken();
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options?.headers || {}),
+    },
+  });
+
+  const payload = await parseApiResponse<T>(response);
+  if (!response.ok || !payload.success) {
+    throw new Error(formatApiError(payload, "Request failed"));
+  }
+  return { data: payload.data, meta: (payload.meta || {}) as M };
 }
 
 export async function loginAdmin(email: string, password: string) {
@@ -370,20 +388,32 @@ export async function trackPublicOrder(payload: { orderNumber: string; phone: st
   return request<Order>("/orders/track", { method: "POST", body: JSON.stringify(payload) });
 }
 
-export async function getAdminOrders() {
-  return adminRequest<Order[]>("/admin/orders");
+export async function getAdminOrders(filters?: Record<string, string>) {
+  const params = new URLSearchParams();
+  Object.entries(filters || {}).forEach(([key, value]) => {
+    if (value) params.set(key, value);
+  });
+  return adminRequestWithMeta<Order[], OrdersMeta>(`/admin/orders${params.toString() ? `?${params.toString()}` : ""}`);
 }
 
-export async function updateAdminOrderStatus(id: string, status: string) {
-  return adminRequest<Order>(`/admin/orders/${id}/status`, { method: "PUT", body: JSON.stringify({ status }) });
+export async function getAdminOrder(id: string) {
+  return adminRequest<Order>(`/admin/orders/${id}`);
 }
 
-export async function updateAdminOrderPayment(id: string, payload: { paymentStatus: string; paidAmount: number; dueAmount: number; refundAmount: number; note?: string }) {
+export async function updateAdminOrderStatus(id: string, status: string, note?: string) {
+  return adminRequest<Order>(`/admin/orders/${id}/status`, { method: "PUT", body: JSON.stringify({ status, note }) });
+}
+
+export async function updateAdminOrderPayment(id: string, payload: { type: "payment" | "refund"; method?: string; paymentMethod?: string; amount: number; reference?: string; transactionId?: string; senderPhone?: string; reason?: string; note?: string; processedAt?: string }) {
   return adminRequest<Order>(`/admin/orders/${id}/payment`, { method: "PUT", body: JSON.stringify(payload) });
 }
 
-export async function updateAdminOrderCourier(id: string, payload: { courier: string; courierCharge: number; trackingNumber: string }) {
+export async function updateAdminOrderCourier(id: string, payload: { courier: string; courierCharge: number; trackingNumber: string; dispatchDate?: string; estimatedDeliveryDate?: string; fulfilmentNote?: string }) {
   return adminRequest<Order>(`/admin/orders/${id}/courier`, { method: "PUT", body: JSON.stringify(payload) });
+}
+
+export async function updateAdminOrderNote(id: string, internalNote: string) {
+  return adminRequest<Order>(`/admin/orders/${id}/note`, { method: "PUT", body: JSON.stringify({ internalNote }) });
 }
 
 export async function getAdminCouriers() {

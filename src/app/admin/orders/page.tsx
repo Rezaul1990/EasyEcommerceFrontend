@@ -1,5 +1,6 @@
 import { AdminShell } from "@/components/admin/AdminShell";
 import { OrdersManagerClient } from "@/components/admin/OrdersManagerClient";
+import { Suspense } from "react";
 
 export const metadata = {
   title: "Orders | EasyEcommerce Admin",
@@ -8,13 +9,9 @@ export const metadata = {
 export default function OrdersAdminPage() {
   return (
     <AdminShell>
-      <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-teal-700">Orders</p>
-          <h1 className="mt-2 text-3xl font-semibold text-slate-950">Order queue</h1>
-        </div>
-      </div>
-      <OrdersManagerClient />
+      <Suspense fallback={<div className="rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-600">Loading orders...</div>}>
+        <OrdersManagerClient />
+      </Suspense>
     </AdminShell>
   );
 }

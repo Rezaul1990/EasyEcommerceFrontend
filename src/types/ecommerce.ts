@@ -213,10 +213,14 @@ export type StockImportHistory = {
 export type Order = {
   _id: string;
   orderNumber: string;
-  customer: { name: string; email?: string; phone: string; address?: string; city?: string };
-  items: Array<{ name: string; sku: string; quantity: number; unitPrice: number; subtotal: number }>;
+  customer: { name: string; email?: string; phone: string; address?: string; city?: string; area?: string; postalCode?: string };
+  items: Array<{ name: string; sku: string; imageUrl?: string; variant?: string; quantity: number; unitPrice: number; discount?: number; subtotal: number }>;
   subtotal: number;
   shippingFee?: number;
+  discountTotal?: number;
+  couponDiscount?: number;
+  courierCharge?: number;
+  taxTotal?: number;
   grandTotal: number;
   status: string;
   paymentStatus: string;
@@ -225,12 +229,39 @@ export type Order = {
   dueAmount?: number;
   refundAmount?: number;
   courier?: CourierCompany | null;
-  courierCharge?: number;
   trackingNumber?: string;
+  dispatchDate?: string | null;
+  estimatedDeliveryDate?: string | null;
+  fulfilmentNote?: string;
+  source?: string;
+  notes?: string;
   internalNote?: string;
-  staffActivity?: Array<{ action: string; note?: string; updatedAt: string }>;
-  statusHistory?: Array<{ status: string; note?: string; updatedAt: string }>;
+  internalNotes?: Array<{ note: string; updatedBy?: AdminUser; updatedAt: string }>;
+  paymentTransactions?: Array<{ _id?: string; type: "payment" | "refund"; method: string; amount: number; reference?: string; transactionId?: string; senderPhone?: string; note?: string; reason?: string; status?: string; processedBy?: AdminUser; updatedBy?: AdminUser; processedAt?: string; updatedAt: string }>;
+  paymentHistory?: Array<{ type?: string; paymentStatus?: string; method?: string; amount?: number; paidAmount?: number; dueAmount?: number; refundAmount?: number; reference?: string; transactionId?: string; note?: string; updatedBy?: AdminUser; updatedAt: string }>;
+  courierHistory?: Array<{ courierName?: string; trackingNumber?: string; courierCharge?: number; note?: string; updatedBy?: AdminUser; updatedAt: string }>;
+  staffActivity?: Array<{ action: string; note?: string; updatedBy?: AdminUser; updatedAt: string }>;
+  statusHistory?: Array<{ status: string; note?: string; updatedBy?: AdminUser; updatedAt: string }>;
+  updatedBy?: AdminUser;
   createdAt: string;
+  updatedAt?: string;
+};
+
+export type OrdersMeta = {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+  summary: {
+    total: number;
+    pending: number;
+    confirmed: number;
+    processing: number;
+    shipped: number;
+    delivered: number;
+    cancelled: number;
+    totalDue: number;
+  };
 };
 
 export type CourierCompany = {
