@@ -401,8 +401,8 @@ export async function createPublicOrder(payload: {
   });
 }
 
-export async function trackPublicOrder(payload: { orderNumber: string; phone: string }) {
-  return request<Order>("/orders/track", { method: "POST", body: JSON.stringify(payload) });
+export async function trackPublicOrder(payload: { orderNumber?: string; phone?: string }) {
+  return request<Order[]>("/orders/track", { method: "POST", body: JSON.stringify(payload) });
 }
 
 export async function getAdminOrders(filters?: Record<string, string>) {

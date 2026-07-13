@@ -1,7 +1,7 @@
 "use client";
 
 import { getCart, getWishlist } from "@/utils/guestStore";
-import { Heart, LayoutDashboard, Search, ShoppingBag } from "lucide-react";
+import { Heart, LayoutDashboard, PackageSearch, Search, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -32,6 +32,9 @@ export function SiteHeader() {
           <Link href="/checkout" className="hover:text-slate-950">
             Checkout
           </Link>
+          <Link href="/track-order" className="hover:text-slate-950">
+            Track Order
+          </Link>
           <Link href="/admin" className="hover:text-slate-950">
             Admin
           </Link>
@@ -47,6 +50,9 @@ export function SiteHeader() {
           <Link href="/cart" className="relative grid size-10 place-items-center rounded-md border border-slate-200 text-slate-600" aria-label="Cart">
             <ShoppingBag size={18} />
             {cartCount ? <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-teal-600 text-[11px] font-semibold text-white">{cartCount}</span> : null}
+          </Link>
+          <Link href="/track-order" className="grid size-10 place-items-center rounded-md border border-slate-200 text-slate-600" aria-label="Track order">
+            <PackageSearch size={18} />
           </Link>
           <Link href="/admin" className="grid size-10 place-items-center rounded-md bg-slate-950 text-white" aria-label="Admin dashboard">
             <LayoutDashboard size={18} />

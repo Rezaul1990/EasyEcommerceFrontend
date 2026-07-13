@@ -5,7 +5,16 @@ export const metadata = {
   title: "Track Order | EasyEcommerce",
 };
 
-export default function TrackOrderPage() {
+type TrackOrderPageProps = {
+  searchParams?: Promise<{
+    order?: string;
+    phone?: string;
+  }>;
+};
+
+export default async function TrackOrderPage({ searchParams }: TrackOrderPageProps) {
+  const params = await searchParams;
+
   return (
     <>
       <SiteHeader />
@@ -14,7 +23,7 @@ export default function TrackOrderPage() {
           <p className="text-sm font-semibold uppercase tracking-wide text-teal-700">Order status</p>
           <h1 className="mt-2 text-3xl font-semibold text-slate-950">Track order</h1>
         </div>
-        <TrackOrderClient />
+        <TrackOrderClient initialOrderNumber={params?.order || ""} initialPhone={params?.phone || ""} />
       </main>
     </>
   );
