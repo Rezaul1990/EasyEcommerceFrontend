@@ -146,6 +146,8 @@ export function CatalogManagerClient() {
   const [uploadedImageAssets, setUploadedImageAssets] = useState<ImageAsset[]>([]);
   const [productName, setProductName] = useState("");
   const [productSku, setProductSku] = useState("");
+  const [productDiscountType, setProductDiscountType] = useState<Product["discountType"]>("none");
+  const [productDiscountValue, setProductDiscountValue] = useState(0);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productDrawerOpen, setProductDrawerOpen] = useState(false);
   const [productEditorTab, setProductEditorTab] = useState<ProductEditorTab>("Basics");
@@ -266,8 +268,8 @@ export function CatalogManagerClient() {
         description: String(form.get("description") || ""),
         status: String(form.get("status") || "draft") as "draft" | "active" | "inactive",
         isFeatured: form.get("isFeatured") === "on",
-        discountType: String(form.get("discountType") || "none") as "none" | "fixed" | "percentage",
-        discountValue: Number(form.get("discountValue") || 0),
+        discountType: productDiscountType || "none",
+        discountValue: Number(productDiscountValue || 0),
         productType: hasGeneratedVariants ? "variant" as const : "simple" as const,
         baseSku: productSku,
         variants: hasGeneratedVariants ? productVariants.map((variant, index) => cleanVariantPayload(variant, productSku, index)) : [],
@@ -280,6 +282,8 @@ export function CatalogManagerClient() {
       formElement.reset();
       setProductName("");
       setProductSku("");
+      setProductDiscountType("none");
+      setProductDiscountValue(0);
       setEditingProduct(null);
       setProductDrawerOpen(false);
       setProductEditorTab("Basics");
@@ -317,6 +321,8 @@ export function CatalogManagerClient() {
     setEditingProduct(product);
     setProductName(product.name);
     setProductSku(product.sku);
+    setProductDiscountType(product.discountType || "none");
+    setProductDiscountValue(product.discountValue || 0);
     setUploadedImageAssets(productImageAssets(product));
     setProductOptions(optionDraftsFromVariants(product.variants || []));
     setProductVariants(productVariantDrafts(product, product.sku));
@@ -332,6 +338,8 @@ export function CatalogManagerClient() {
     setEditingProduct(null);
     setProductName("");
     setProductSku("");
+    setProductDiscountType("none");
+    setProductDiscountValue(0);
     setProductDrawerOpen(false);
     setProductEditorTab("Basics");
     setUploadedImageAssets([]);
@@ -345,6 +353,8 @@ export function CatalogManagerClient() {
     setEditingProduct(null);
     setProductName("");
     setProductSku("");
+    setProductDiscountType("none");
+    setProductDiscountValue(0);
     setUploadedImageAssets([]);
     setProductOptions([optionDraft()]);
     setProductVariants([variantDraft()]);
@@ -650,6 +660,23 @@ export function CatalogManagerClient() {
                           Featured Product
                         </label>
                       </div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex flex-col gap-3 sm:grid sm:grid-cols-[1fr_1fr]">
+                          <label className="block space-y-1 text-sm font-medium text-slate-700">
+                            <span>Product discount</span>
+                            <select value={productDiscountType || "none"} onChange={(event) => setProductDiscountType(event.target.value as Product["discountType"])} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm">
+                              <option value="none">No discount</option>
+                              <option value="fixed">Fixed amount</option>
+                              <option value="percentage">Percentage</option>
+                            </select>
+                          </label>
+                          <label className="block space-y-1 text-sm font-medium text-slate-700">
+                            <span>{productDiscountType === "percentage" ? "Discount percentage" : "Discount amount"}</span>
+                            <input value={productDiscountValue} onChange={(event) => setProductDiscountValue(Number(event.target.value || 0))} type="number" min="0" step="0.01" disabled={!productDiscountType || productDiscountType === "none"} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm disabled:bg-slate-100 disabled:text-slate-400" placeholder={productDiscountType === "percentage" ? "10" : "250"} />
+                          </label>
+                        </div>
+                        <p className="mt-2 text-xs text-slate-500">This discount shows on product cards and is applied to simple product pricing.</p>
+                      </div>
                       <label className="block space-y-1 text-sm font-medium text-slate-700">
                         <span>Short description</span>
                         <textarea name="shortDescription" defaultValue={editingProduct?.shortDescription || ""} className="min-h-20 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Short product summary..." />
@@ -810,15 +837,15 @@ export function CatalogManagerClient() {
                       <div className="grid gap-3 sm:grid-cols-2">
                         <label className="block space-y-1 text-sm font-medium text-slate-700">
                           <span>Discount type</span>
-                          <select name="discountType" defaultValue={editingProduct?.discountType || "none"} className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm">
+                          <select value={productDiscountType || "none"} onChange={(event) => setProductDiscountType(event.target.value as Product["discountType"])} className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm">
                             <option value="none">No discount</option>
-                            <option value="fixed">Fixed</option>
+                            <option value="fixed">Fixed amount</option>
                             <option value="percentage">Percentage</option>
                           </select>
                         </label>
                         <label className="block space-y-1 text-sm font-medium text-slate-700">
-                          <span>Discount value</span>
-                          <input name="discountValue" type="number" min="0" defaultValue={editingProduct?.discountValue ?? 0} className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm" placeholder="Discount" />
+                          <span>{productDiscountType === "percentage" ? "Discount percentage" : "Discount amount"}</span>
+                          <input value={productDiscountValue} onChange={(event) => setProductDiscountValue(Number(event.target.value || 0))} type="number" min="0" step="0.01" disabled={!productDiscountType || productDiscountType === "none"} className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm disabled:bg-slate-100 disabled:text-slate-400" placeholder="Discount" />
                         </label>
                       </div>
                     </div>
