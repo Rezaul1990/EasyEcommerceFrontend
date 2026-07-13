@@ -50,7 +50,6 @@ export function CartClient() {
                 <div className="min-w-0">
                   <h2 className="truncate font-semibold text-slate-950">{item.name}</h2>
                   {variantLabel ? <p className="mt-1 text-sm font-semibold text-teal-700">{variantLabel}</p> : null}
-                  <p className="mt-1 text-sm text-slate-600">SKU: {item.selectedVariant?.sku || item.sku}</p>
                   <p className="mt-1 text-sm font-semibold text-slate-950">{formatMoney(price, currency)}</p>
                 </div>
               </div>
