@@ -101,6 +101,22 @@ export type SidebarItem = {
   module: string;
 };
 
+export type EditablePage = {
+  pageKey: string;
+  label: string;
+  path: string;
+  status?: "draft" | "published";
+  updatedAt?: string | null;
+};
+
+export type PageContent = {
+  pageKey: string;
+  content: Record<string, string>;
+  status: "draft" | "published";
+  updatedAt?: string | null;
+  publishedAt?: string | null;
+};
+
 export type InviteResponse = {
   user: AdminUser;
   inviteLink: string;

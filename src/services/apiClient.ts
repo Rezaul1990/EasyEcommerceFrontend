@@ -1,4 +1,4 @@
-import type { AdminUser, ApiResponse, Category, Coupon, CourierCompany, DashboardSummary, DeliveryArea, ImageAsset, InventoryMeta, InventoryMovement, InventoryRow, InviteResponse, MovementMeta, Order, OrdersMeta, PaymentMethodSetting, Permission, Product, ReportSummary, Role, SidebarItem, StockImportHistory, StoreSetting } from "@/types/ecommerce";
+import type { AdminUser, ApiResponse, Category, Coupon, CourierCompany, DashboardSummary, DeliveryArea, EditablePage, ImageAsset, InventoryMeta, InventoryMovement, InventoryRow, InviteResponse, MovementMeta, Order, OrdersMeta, PageContent, PaymentMethodSetting, Permission, Product, ReportSummary, Role, SidebarItem, StockImportHistory, StoreSetting } from "@/types/ecommerce";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
@@ -173,6 +173,26 @@ export async function getAdminSidebar() {
 
 export async function getPermissionRegistry() {
   return adminRequest<Permission[]>("/admin/permissions");
+}
+
+export async function getContentPages() {
+  return adminRequest<EditablePage[]>("/admin/content/pages");
+}
+
+export async function getAdminPageContent(pageKey: string) {
+  return adminRequest<PageContent>(`/admin/content/${pageKey}`);
+}
+
+export async function updateAdminPageContent(pageKey: string, payload: { content: Record<string, string>; status?: "draft" | "published" }) {
+  return adminRequest<PageContent>(`/admin/content/${pageKey}`, { method: "PUT", body: JSON.stringify(payload) });
+}
+
+export async function getPublicPageContent(pageKey: string) {
+  try {
+    return await request<PageContent>(`/content/${pageKey}`);
+  } catch {
+    return { pageKey, content: {}, status: "published" as const };
+  }
 }
 
 export async function getRoles() {
