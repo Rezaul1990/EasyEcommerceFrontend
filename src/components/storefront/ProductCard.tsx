@@ -3,16 +3,22 @@
 import type { Product } from "@/types/ecommerce";
 import { getProductImageUrl, shouldBypassImageOptimizer } from "@/utils/imageUrl";
 import { addToCart, toggleWishlist } from "@/utils/guestStore";
-import { Heart, ShoppingCart } from "lucide-react";
+import { Eye, Heart, ShoppingCart } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
 export function ProductCard({ product }: { product: Product }) {
   const image = getProductImageUrl(product);
+  const activeVariants = product.productType === "variant" ? product.variants?.filter((variant) => variant.status === "active") || [] : [];
+  const isVariantProduct = activeVariants.length > 0;
+  const displayPrice = isVariantProduct ? Math.min(...activeVariants.map((variant) => variant.finalPrice || variant.price)) : product.finalPrice || product.price;
+  const availableStock = isVariantProduct
+    ? activeVariants.reduce((total, variant) => total + Math.max((variant.stock || 0) - (variant.reservedStock || 0), 0), 0)
+    : product.stockQuantity ?? product.stock ?? 0;
 
   return (
-    <article className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-      <Link href={`/products/${product.slug}`} className="block aspect-[4/3] overflow-hidden bg-slate-100">
+    <article className="group overflow-hidden rounded-lg border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm">
+      <Link href={`/products/${product.slug}`} className="relative block aspect-[4/3] overflow-hidden bg-slate-100">
         <Image
           src={image}
           alt={product.name}
@@ -21,32 +27,45 @@ export function ProductCard({ product }: { product: Product }) {
           unoptimized={shouldBypassImageOptimizer(image)}
           className="h-full w-full object-cover transition duration-300 hover:scale-105"
         />
+        <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+          {isVariantProduct ? <span className="rounded-full bg-slate-950 px-2.5 py-1 text-xs font-semibold text-white">Options available</span> : null}
+          {availableStock <= 0 ? <span className="rounded-full bg-rose-600 px-2.5 py-1 text-xs font-semibold text-white">Out of stock</span> : null}
+        </div>
       </Link>
-      <div className="space-y-3 p-4">
+      <div className="space-y-4 p-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-teal-700">{product.categoryId?.name || "Catalog"}</p>
           <h3 className="mt-1 text-base font-semibold text-slate-950">{product.name}</h3>
           <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-600">{product.shortDescription || product.description}</p>
         </div>
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-end justify-between gap-3">
           <div>
-            <p className="text-lg font-semibold text-slate-950">${product.price.toFixed(2)}</p>
+            <p className="text-lg font-semibold text-slate-950">{isVariantProduct ? "From " : ""}${displayPrice.toFixed(2)}</p>
             {product.compareAtPrice ? <p className="text-xs text-slate-400 line-through">${product.compareAtPrice.toFixed(2)}</p> : null}
+            <p className={`mt-1 text-xs font-semibold ${availableStock > 0 ? "text-emerald-700" : "text-rose-600"}`}>
+              {availableStock > 0 ? `${availableStock} available` : "Currently unavailable"}
+            </p>
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => toggleWishlist(product)} className="grid size-10 place-items-center rounded-md border border-slate-200 text-slate-600" aria-label={`Add ${product.name} to wishlist`}>
-              <Heart size={18} />
+          <button onClick={() => toggleWishlist(product)} className="grid size-10 shrink-0 place-items-center rounded-md border border-slate-200 text-slate-600 hover:border-slate-300 hover:text-rose-600" aria-label={`Add ${product.name} to wishlist`}>
+            <Heart size={18} />
+          </button>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Link href={`/products/${product.slug}`} className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+            <Eye size={17} />
+            View details
+          </Link>
+          {isVariantProduct ? (
+            <Link href={`/products/${product.slug}`} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-teal-600 px-3 text-sm font-semibold text-white hover:bg-teal-700">
+              <ShoppingCart size={17} />
+              Choose options
+            </Link>
+          ) : (
+            <button onClick={() => addToCart(product)} disabled={availableStock <= 0} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-teal-600 px-3 text-sm font-semibold text-white hover:bg-teal-700 disabled:bg-slate-400">
+              <ShoppingCart size={17} />
+              Add to cart
             </button>
-            {product.productType === "variant" && product.variants?.length ? (
-              <Link href={`/products/${product.slug}`} className="grid size-10 place-items-center rounded-md bg-teal-600 text-white" aria-label={`Choose options for ${product.name}`}>
-                <ShoppingCart size={18} />
-              </Link>
-            ) : (
-              <button onClick={() => addToCart(product)} className="grid size-10 place-items-center rounded-md bg-teal-600 text-white" aria-label={`Add ${product.name} to cart`}>
-                <ShoppingCart size={18} />
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </article>
