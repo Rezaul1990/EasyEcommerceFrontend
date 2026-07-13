@@ -187,6 +187,10 @@ export async function updateRole(id: string, payload: { name: string; slug: stri
   return adminRequest<Role>(`/admin/roles/${id}`, { method: "PUT", body: JSON.stringify(payload) });
 }
 
+export async function deleteRole(id: string) {
+  return adminRequest<Role>(`/admin/roles/${id}`, { method: "DELETE" });
+}
+
 export async function getUsers() {
   return adminRequest<AdminUser[]>("/admin/users");
 }

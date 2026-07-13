@@ -1,8 +1,8 @@
 "use client";
 
-import { createRole, createUserInvite, getCurrentAdmin, getPermissionRegistry, getRoles, getUsers, resendUserInvite, updateRole } from "@/services/apiClient";
+import { createRole, createUserInvite, deleteRole, getCurrentAdmin, getPermissionRegistry, getRoles, getUsers, resendUserInvite, updateRole } from "@/services/apiClient";
 import type { AdminUser, InviteResponse, Permission, Role } from "@/types/ecommerce";
-import { Copy, Pencil, Plus, RefreshCcw, ShieldCheck, UserPlus, X } from "lucide-react";
+import { Copy, Pencil, Plus, RefreshCcw, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 function slugFromName(value: string) {
@@ -41,6 +41,7 @@ export function AccessControlClient() {
   const canViewRoles = hasPermission("roles.view");
   const canCreateRoles = hasPermission("roles.create");
   const canUpdateRoles = hasPermission("roles.update");
+  const isOwner = currentUser?.role?.slug === "owner";
   const canManageRoles = canCreateRoles || canUpdateRoles;
 
   useEffect(() => {
@@ -141,6 +142,22 @@ export function AccessControlClient() {
       setError(err instanceof Error ? err.message : "Invite could not be created");
     } finally {
       setSavingUser(false);
+    }
+  }
+
+  async function handleDeleteRole(role: Role) {
+    if (role.slug === "owner") return;
+    const confirmed = window.confirm(`Delete the "${role.name}" role? This cannot be undone.`);
+    if (!confirmed) return;
+    setError("");
+    setSuccess("");
+    try {
+      await deleteRole(role._id);
+      setRoles((current) => current.filter((item) => item._id !== role._id));
+      if (editingRole?._id === role._id) resetRoleForm();
+      setSuccess("Role deleted");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Role could not be deleted");
     }
   }
 
@@ -250,15 +267,27 @@ export function AccessControlClient() {
                         </div>
                         <p className="mt-1 text-sm text-slate-500">{role.description || "No description"} · {role.permissions.length} permissions</p>
                       </div>
-                      <button
-                        type="button"
-                        disabled={!canUpdateRoles || isOwnerRole}
-                        onClick={() => handleEditRole(role)}
-                        className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
-                      >
-                        <Pencil size={15} />
-                        {isActiveEdit ? "Editing" : "Edit"}
-                      </button>
+                      <div className="flex flex-wrap gap-2 md:justify-end">
+                        <button
+                          type="button"
+                          disabled={!canUpdateRoles || isOwnerRole}
+                          onClick={() => handleEditRole(role)}
+                          className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+                        >
+                          <Pencil size={15} />
+                          {isActiveEdit ? "Editing" : "Edit"}
+                        </button>
+                        {isOwner && !isOwnerRole ? (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRole(role)}
+                            className="inline-flex items-center justify-center gap-2 rounded-md border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50"
+                          >
+                            <Trash2 size={15} />
+                            Delete
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
                   );
                 })}
