@@ -89,6 +89,45 @@ function cartesianOptions(options: OptionDraft[]) {
   }, []);
 }
 
+function cleanVariantOptions(options: ProductVariant["options"] = {}) {
+  return Object.fromEntries(
+    Object.entries(options)
+      .map(([name, value]) => [name.trim(), String(value || "").trim()])
+      .filter(([name, value]) => name && value),
+  );
+}
+
+function cleanVariantPayload(variant: VariantDraft, fallbackSku: string, index: number): ProductVariant {
+  const options = cleanVariantOptions(variant.options);
+  const optionLabel = Object.values(options).join(" / ");
+  const variantName = (variant.variantName || optionLabel || `Variant ${index + 1}`).trim();
+  const skuBase = (variant.sku || `${fallbackSku || "PRODUCT"}-${index + 1}`).trim().toUpperCase();
+  const price = Number.isFinite(Number(variant.price)) ? Number(variant.price) : 0;
+  const stock = Number.isFinite(Number(variant.stock)) ? Number(variant.stock) : 0;
+  const reservedStock = Number.isFinite(Number(variant.reservedStock)) ? Number(variant.reservedStock) : 0;
+  const lowStockThreshold = Number.isFinite(Number(variant.lowStockThreshold)) ? Number(variant.lowStockThreshold) : 5;
+  const discountValue = Number.isFinite(Number(variant.discountValue)) ? Number(variant.discountValue) : 0;
+  const compareAtPrice = variant.compareAtPrice === null || variant.compareAtPrice === undefined || !Number.isFinite(Number(variant.compareAtPrice))
+    ? null
+    : Number(variant.compareAtPrice);
+
+  return {
+    variantName,
+    options,
+    sku: skuBase,
+    price,
+    compareAtPrice,
+    discountType: variant.discountType || "none",
+    discountValue,
+    finalPrice: price,
+    stock,
+    reservedStock,
+    lowStockThreshold,
+    image: String(variant.image || ""),
+    status: variant.status === "inactive" ? "inactive" : "active",
+  };
+}
+
 export function CatalogManagerClient() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -231,20 +270,7 @@ export function CatalogManagerClient() {
         discountValue: Number(form.get("discountValue") || 0),
         productType: hasGeneratedVariants ? "variant" as const : "simple" as const,
         baseSku: productSku,
-        variants: hasGeneratedVariants ? productVariants.map((draft) => {
-          const { id, ...variant } = draft;
-          void id;
-          return {
-            ...variant,
-            sku: variant.sku || productSku,
-            price: Number(variant.price || 0),
-            compareAtPrice: variant.compareAtPrice ? Number(variant.compareAtPrice) : null,
-            stock: Number(variant.stock || 0),
-            reservedStock: Number(variant.reservedStock || 0),
-            lowStockThreshold: Number(variant.lowStockThreshold || 5),
-            status: variant.status || "active",
-          };
-        }) : [],
+        variants: hasGeneratedVariants ? productVariants.map((variant, index) => cleanVariantPayload(variant, productSku, index)) : [],
         imageUrls: uploadedImageAssets.map((asset) => asset.url),
         galleryImages: uploadedImageAssets.map((asset) => asset.url),
         imageAssets: uploadedImageAssets,
