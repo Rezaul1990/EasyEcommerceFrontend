@@ -299,6 +299,12 @@ export async function createAdminProduct(payload: {
   isFeatured: boolean;
   discountType: "none" | "fixed" | "percentage";
   discountValue: number;
+  productType?: "simple" | "variant";
+  basePrice?: number;
+  baseSku?: string;
+  stock?: number;
+  reservedStock?: number;
+  variants?: Product["variants"];
   imageUrls?: string[];
   galleryImages?: string[];
   imageAssets?: ImageAsset[];
@@ -319,6 +325,12 @@ export async function updateAdminProduct(id: string, payload: {
   isFeatured: boolean;
   discountType: "none" | "fixed" | "percentage";
   discountValue: number;
+  productType?: "simple" | "variant";
+  basePrice?: number;
+  baseSku?: string;
+  stock?: number;
+  reservedStock?: number;
+  variants?: Product["variants"];
   imageUrls?: string[];
   galleryImages?: string[];
   imageAssets?: ImageAsset[];

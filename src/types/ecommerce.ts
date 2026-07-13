@@ -32,8 +32,26 @@ export type Product = {
   lowStockThreshold?: number;
   galleryImages?: string[];
   imageAssets?: ImageAsset[];
+  variants?: ProductVariant[];
   status: "draft" | "active" | "inactive" | "archived";
   isFeatured: boolean;
+};
+
+export type ProductVariant = {
+  _id?: string;
+  variantName: string;
+  options?: Record<string, string>;
+  sku: string;
+  price: number;
+  compareAtPrice?: number | null;
+  discountType?: "none" | "fixed" | "percentage";
+  discountValue?: number;
+  finalPrice?: number;
+  stock: number;
+  reservedStock?: number;
+  lowStockThreshold?: number;
+  image?: string;
+  status: "active" | "inactive";
 };
 
 export type ImageAsset = {

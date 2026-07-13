@@ -3,7 +3,7 @@
 import { DataTable } from "@/components/admin/ui/DataTable";
 import { ErrorState, LoadingState } from "@/components/admin/ui/States";
 import { archiveAdminProduct, createAdminCategory, createAdminCoupon, createAdminProduct, deleteAdminCategory, deleteAdminCoupon, deleteAdminProductImage, getAdminCategories, getAdminCoupons, getAdminProducts, getCurrentAdmin, updateAdminProduct, uploadAdminProductImages } from "@/services/apiClient";
-import type { AdminUser, Category, Coupon, ImageAsset, Product } from "@/types/ecommerce";
+import type { AdminUser, Category, Coupon, ImageAsset, Product, ProductVariant } from "@/types/ecommerce";
 import { getProductImageUrl, resolveImageUrl, shouldBypassImageOptimizer } from "@/utils/imageUrl";
 import { Archive, FolderPlus, ImageIcon, Loader2, Pencil, Plus, TicketPercent, Trash2, X } from "lucide-react";
 import Image from "next/image";
@@ -11,7 +11,10 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 
 const moneyFormatter = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const catalogTabs = ["products", "categories", "coupons"] as const;
+const productEditorTabs = ["Basics", "Media", "Categories", "Options & Variants", "Configurator", "SEO"] as const;
 type CatalogTab = (typeof catalogTabs)[number];
+type ProductEditorTab = (typeof productEditorTabs)[number];
+type VariantDraft = ProductVariant & { id: string };
 
 function makeSkuBase(value: string) {
   const base = value
@@ -36,6 +39,29 @@ function makeUniqueSku(value: string, products: Product[], excludeProductId?: st
   return candidate;
 }
 
+function variantDraft(values?: Partial<ProductVariant>, fallbackSku = "DEFAULT"): VariantDraft {
+  return {
+    id: values?._id || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    variantName: values?.variantName || "Default",
+    options: values?.options || {},
+    sku: values?.sku || fallbackSku,
+    price: values?.price ?? 0,
+    discountType: values?.discountType || "none",
+    discountValue: values?.discountValue ?? 0,
+    finalPrice: values?.finalPrice ?? values?.price ?? 0,
+    stock: values?.stock ?? 0,
+    reservedStock: values?.reservedStock ?? 0,
+    lowStockThreshold: values?.lowStockThreshold ?? 5,
+    image: values?.image || "",
+    status: values?.status || "active",
+  };
+}
+
+function productVariantDrafts(product: Product | null, fallbackSku: string) {
+  if (product?.variants?.length) return product.variants.map((variant) => variantDraft(variant, fallbackSku));
+  return [variantDraft({ variantName: "Default", sku: product?.sku || fallbackSku, price: product?.price || 0, stock: product?.stockQuantity ?? product?.stock ?? 0, reservedStock: product?.reservedStock || 0, image: product?.imageUrls?.[0] || "" }, fallbackSku)];
+}
+
 export function CatalogManagerClient() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -43,6 +69,9 @@ export function CatalogManagerClient() {
   const [activeTab, setActiveTab] = useState<CatalogTab>("products");
   const [user, setUser] = useState<AdminUser | null>(null);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [stockFilter, setStockFilter] = useState("all");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(true);
@@ -52,6 +81,9 @@ export function CatalogManagerClient() {
   const [productName, setProductName] = useState("");
   const [productSku, setProductSku] = useState("");
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [productDrawerOpen, setProductDrawerOpen] = useState(false);
+  const [productEditorTab, setProductEditorTab] = useState<ProductEditorTab>("Basics");
+  const [productVariants, setProductVariants] = useState<VariantDraft[]>([variantDraft()]);
   const [productFormKey, setProductFormKey] = useState(0);
 
   const hasPermission = (permission: string) => Boolean(user?.role?.slug === "owner" || user?.role?.permissions.includes(permission));
@@ -110,8 +142,17 @@ export function CatalogManagerClient() {
 
   const filteredProducts = useMemo(() => {
     const value = search.toLowerCase();
-    return products.filter((product) => product.name.toLowerCase().includes(value) || product.sku.toLowerCase().includes(value));
-  }, [products, search]);
+    return products.filter((product) => {
+      const matchesSearch = product.name.toLowerCase().includes(value) || product.sku.toLowerCase().includes(value) || product.slug.toLowerCase().includes(value);
+      const matchesStatus = statusFilter === "all" || product.status === statusFilter;
+      const categoryId = productCategoryId(product);
+      const matchesCategory = categoryFilter === "all" || categoryId === categoryFilter;
+      const stock = product.stockQuantity ?? product.stock ?? 0;
+      const threshold = product.lowStockThreshold ?? 5;
+      const matchesStock = stockFilter === "all" || (stockFilter === "in" && stock > threshold) || (stockFilter === "low" && stock > 0 && stock <= threshold) || (stockFilter === "out" && stock <= 0);
+      return matchesSearch && matchesStatus && matchesCategory && matchesStock;
+    });
+  }, [categoryFilter, products, search, statusFilter, stockFilter]);
 
   async function handleCreateCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -147,8 +188,11 @@ export function CatalogManagerClient() {
         name: productName,
         categoryId: String(form.get("categoryId") || ""),
         sku: productSku,
-        price: Number(form.get("price") || 0),
-        stockQuantity: Number(form.get("stockQuantity") || 0),
+        price: Number(form.get("price") || productVariants[0]?.price || 0),
+        basePrice: Number(form.get("price") || productVariants[0]?.price || 0),
+        stock: Number(form.get("stockQuantity") || productVariants[0]?.stock || 0),
+        stockQuantity: Number(form.get("stockQuantity") || productVariants[0]?.stock || 0),
+        reservedStock: Number(productVariants[0]?.reservedStock || 0),
         lowStockThreshold: Number(form.get("lowStockThreshold") || 5),
         shortDescription: String(form.get("shortDescription") || ""),
         description: String(form.get("description") || ""),
@@ -156,6 +200,21 @@ export function CatalogManagerClient() {
         isFeatured: form.get("isFeatured") === "on",
         discountType: String(form.get("discountType") || "none") as "none" | "fixed" | "percentage",
         discountValue: Number(form.get("discountValue") || 0),
+        productType: productVariants.length ? "variant" as const : "simple" as const,
+        baseSku: productSku,
+        variants: productVariants.map((draft) => {
+          const { id, ...variant } = draft;
+          void id;
+          return {
+            ...variant,
+            sku: variant.sku || productSku,
+            price: Number(variant.price || 0),
+            stock: Number(variant.stock || 0),
+            reservedStock: Number(variant.reservedStock || 0),
+            lowStockThreshold: Number(variant.lowStockThreshold || 5),
+            status: variant.status || "active",
+          };
+        }),
         imageUrls: uploadedImageAssets.map((asset) => asset.url),
         galleryImages: uploadedImageAssets.map((asset) => asset.url),
         imageAssets: uploadedImageAssets,
@@ -166,6 +225,8 @@ export function CatalogManagerClient() {
       setProductName("");
       setProductSku("");
       setEditingProduct(null);
+      setProductDrawerOpen(false);
+      setProductEditorTab("Basics");
       setUploadedImageAssets([]);
       setProductFormKey((value) => value + 1);
       setSuccess(editingProduct ? "Product updated" : "Product created");
@@ -177,8 +238,10 @@ export function CatalogManagerClient() {
   }
 
   function updateProductName(value: string) {
+    const nextSku = value ? makeUniqueSku(value, products, editingProduct?._id) : "";
     setProductName(value);
-    setProductSku(value ? makeUniqueSku(value, products, editingProduct?._id) : "");
+    setProductSku(nextSku);
+    setProductVariants((current) => current.map((variant, index) => (index === 0 && (!variant.sku || variant.sku === "DEFAULT" || variant.sku === productSku) ? { ...variant, sku: nextSku } : variant)));
   }
 
   function productCategoryId(product: Product) {
@@ -197,6 +260,9 @@ export function CatalogManagerClient() {
     setProductName(product.name);
     setProductSku(product.sku);
     setUploadedImageAssets(productImageAssets(product));
+    setProductVariants(productVariantDrafts(product, product.sku));
+    setProductDrawerOpen(true);
+    setProductEditorTab("Basics");
     setActiveTab("products");
     setError("");
     setSuccess("");
@@ -207,9 +273,41 @@ export function CatalogManagerClient() {
     setEditingProduct(null);
     setProductName("");
     setProductSku("");
+    setProductDrawerOpen(false);
+    setProductEditorTab("Basics");
     setUploadedImageAssets([]);
+    setProductVariants([variantDraft()]);
     setError("");
     setProductFormKey((value) => value + 1);
+  }
+
+  function openNewProduct() {
+    setEditingProduct(null);
+    setProductName("");
+    setProductSku("");
+    setUploadedImageAssets([]);
+    setProductVariants([variantDraft()]);
+    setProductDrawerOpen(true);
+    setProductEditorTab("Basics");
+    setError("");
+    setSuccess("");
+    setProductFormKey((value) => value + 1);
+  }
+
+  function updateVariant(id: string, field: keyof ProductVariant, value: string | number) {
+    setProductVariants((current) => current.map((variant) => (variant.id === id ? { ...variant, [field]: value } : variant)));
+  }
+
+  function addVariant() {
+    setProductVariants((current) => [...current, variantDraft({ variantName: `Variant ${current.length + 1}`, sku: productSku ? `${productSku}-${current.length + 1}` : "" }, productSku)]);
+  }
+
+  function removeVariant(id: string) {
+    setProductVariants((current) => (current.length > 1 ? current.filter((variant) => variant.id !== id) : current));
+  }
+
+  function setVariantImage(id: string, image: string) {
+    updateVariant(id, "image", image);
   }
 
   async function handleProductImageUpload(event: ChangeEvent<HTMLInputElement>) {
@@ -322,83 +420,43 @@ export function CatalogManagerClient() {
         ))}
       </div>
       {activeTab === "products" ? (
-        <div className={`grid gap-5 ${canCreateProducts || (editingProduct && canUpdateProducts) ? "xl:grid-cols-[380px_1fr]" : ""}`}>
-          {canCreateProducts || (editingProduct && canUpdateProducts) ? (
-            <section className="rounded-lg border border-slate-200 bg-white p-5">
-              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950">
-                <Plus size={18} />
-                {editingProduct ? "Edit product" : "Add product"}
-              </h2>
-              <form key={productFormKey} onSubmit={handleCreateProduct} className="mt-4 grid gap-3">
-              <input name="name" value={productName} onChange={(event) => updateProductName(event.target.value)} autoComplete="off" className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Product name" required />
-              <select name="categoryId" defaultValue={editingProduct ? productCategoryId(editingProduct) : ""} className="h-10 rounded-md border border-slate-300 px-3 text-sm" required>
-                <option value="">Select category</option>
+        <div className="space-y-4">
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+            <div>
+              <h2 className="text-2xl font-semibold text-slate-950">Products</h2>
+              <p className="mt-1 text-sm text-slate-600">Search, price, publish, and organize catalog inventory.</p>
+            </div>
+            {canCreateProducts ? (
+              <button onClick={openNewProduct} className="inline-flex items-center justify-center gap-2 rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white">
+                <Plus size={16} />
+                New Product
+              </button>
+            ) : null}
+          </div>
+          <section className="rounded-lg border border-slate-200 bg-white">
+            <div className="grid gap-3 border-b border-slate-200 p-4 lg:grid-cols-[1fr_160px_180px_150px]">
+              <input value={search} onChange={(event) => setSearch(event.target.value)} className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Search products, slugs, or SKUs." />
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-10 rounded-md border border-slate-300 px-3 text-sm">
+                <option value="all">All Statuses</option>
+                <option value="draft">Draft</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="archived">Archived</option>
+              </select>
+              <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="h-10 rounded-md border border-slate-300 px-3 text-sm">
+                <option value="all">All Categories</option>
                 {categories.map((category) => (
                   <option key={category._id} value={category._id}>
                     {category.name}
                   </option>
                 ))}
               </select>
-              <div className="grid grid-cols-2 gap-3">
-                <input name="sku" value={productSku} readOnly autoComplete="off" className="h-10 rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700" placeholder="Auto SKU" required />
-                <input name="price" type="number" min="0" step="0.01" defaultValue={editingProduct?.price || ""} className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Price" required />
-                <input name="stockQuantity" type="number" min="0" defaultValue={editingProduct?.stockQuantity ?? editingProduct?.stock ?? ""} className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Stock" required />
-                <input name="lowStockThreshold" type="number" min="0" defaultValue={editingProduct?.lowStockThreshold ?? 5} className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Low stock" />
-              </div>
-              <textarea name="shortDescription" defaultValue={editingProduct?.shortDescription || ""} className="min-h-20 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Short description" />
-              <div>
-                <textarea name="description" defaultValue={editingProduct?.description || ""} minLength={10} className="min-h-24 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Description" required />
-                <p className="mt-1 text-xs text-slate-500">Minimum 10 characters.</p>
-              </div>
-              <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-3">
-                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
-                  {uploadingImages ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} />}
-                  {uploadingImages ? "Uploading..." : "Select product images"}
-                  <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="sr-only" onChange={handleProductImageUpload} disabled={uploadingImages || uploadedImageAssets.length >= 10} />
-                </label>
-                {uploadedImageAssets.length ? (
-                  <div className="mt-3 grid grid-cols-3 gap-2">
-                    {uploadedImageAssets.map((asset) => (
-                      <div key={`${asset.provider || "image"}-${asset.publicId || asset.url}`} className="group relative aspect-square overflow-hidden rounded-md border border-slate-200 bg-white">
-                        <Image src={resolveImageUrl(asset.url)} alt="Uploaded product" fill sizes="120px" unoptimized={shouldBypassImageOptimizer(resolveImageUrl(asset.url))} className="object-cover" />
-                        <button type="button" onClick={() => removeUploadedProductImage(asset)} className="absolute right-1 top-1 inline-flex size-7 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm hover:text-rose-600">
-                          <X size={15} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-2 text-xs text-slate-500">JPG, PNG, WEBP, GIF. Max 5MB each, up to 10 images.</p>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <select name="discountType" defaultValue={editingProduct?.discountType || "none"} className="h-10 rounded-md border border-slate-300 px-3 text-sm">
-                  <option value="none">No discount</option>
-                  <option value="fixed">Fixed</option>
-                  <option value="percentage">Percentage</option>
-                </select>
-                <input name="discountValue" type="number" min="0" defaultValue={editingProduct?.discountValue ?? 0} className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Discount" />
-              </div>
-              <select name="status" defaultValue={editingProduct?.status || "draft"} className="h-10 rounded-md border border-slate-300 px-3 text-sm">
-                <option value="draft">Draft</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="archived">Archived</option>
+              <select value={stockFilter} onChange={(event) => setStockFilter(event.target.value)} className="h-10 rounded-md border border-slate-300 px-3 text-sm">
+                <option value="all">Stock: All</option>
+                <option value="in">In stock</option>
+                <option value="low">Low stock</option>
+                <option value="out">Out of stock</option>
               </select>
-              <label className="flex items-center gap-2 text-sm text-slate-700">
-                <input type="checkbox" name="isFeatured" defaultChecked={editingProduct?.isFeatured || false} className="size-4 rounded border-slate-300 text-teal-600" />
-                Featured product
-              </label>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <button disabled={saving || uploadingImages} className="rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-400">{editingProduct ? "Update product" : "Create product"}</button>
-                  {editingProduct ? <button type="button" onClick={cancelEditProduct} className="rounded-md border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700">Cancel edit</button> : null}
-                </div>
-              </form>
-            </section>
-          ) : null}
-          <section className="rounded-lg border border-slate-200 bg-white">
-            <div className="border-b border-slate-200 p-4">
-              <input value={search} onChange={(event) => setSearch(event.target.value)} className="h-10 w-full max-w-sm rounded-md border border-slate-300 px-3 text-sm" placeholder="Search name or SKU" />
             </div>
             <DataTable
               rows={filteredProducts}
@@ -409,17 +467,20 @@ export function CatalogManagerClient() {
                   header: "Product",
                   render: (row) => (
                     <div className="flex items-center gap-3">
-                      <div className="relative size-11 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
-                        {getProductImageUrl(row, "") ? <Image src={getProductImageUrl(row, "")} alt={row.name} fill sizes="44px" unoptimized={shouldBypassImageOptimizer(getProductImageUrl(row, ""))} className="object-cover" /> : <div className="flex h-full w-full items-center justify-center text-slate-400"><ImageIcon size={16} /></div>}
+                      <div className="relative size-12 overflow-hidden rounded-md border border-slate-200 bg-slate-50">
+                        {getProductImageUrl(row, "") ? <Image src={getProductImageUrl(row, "")} alt={row.name} fill sizes="48px" unoptimized={shouldBypassImageOptimizer(getProductImageUrl(row, ""))} className="object-cover" /> : <div className="flex h-full w-full items-center justify-center text-slate-400"><ImageIcon size={16} /></div>}
                       </div>
-                      <span className="font-medium text-slate-950">{row.name}</span>
+                      <div>
+                        <span className="font-medium text-slate-950">{row.name}</span>
+                        <p className="mt-1 text-xs text-slate-500">/shop/{row.slug}</p>
+                      </div>
                     </div>
                   ),
                 },
-                { key: "sku", header: "SKU", render: (row) => <span className="text-slate-600">{row.sku}</span> },
-                { key: "stock", header: "Stock", render: (row) => <span>{row.stockQuantity ?? row.stock ?? 0}</span> },
+                { key: "status", header: "Status", render: (row) => <span className={`rounded-md px-2 py-1 text-xs font-semibold uppercase ${row.status === "active" ? "bg-emerald-50 text-emerald-700" : row.status === "archived" ? "bg-slate-100 text-slate-600" : "bg-amber-50 text-amber-700"}`}>{row.status}</span> },
+                { key: "category", header: "Categories", render: (row) => <span className="text-slate-600">{typeof row.categoryId === "object" ? row.categoryId?.name : "None"}</span> },
+                { key: "stock", header: "Stock", render: (row) => <span>{row.stockQuantity ?? row.stock ?? 0} avail</span> },
                 { key: "price", header: "Price", render: (row) => <span>{moneyFormatter.format(row.finalPrice || row.price)}</span> },
-                { key: "status", header: "Status", render: (row) => <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">{row.status}</span> },
                 ...(canUpdateProducts || canDeleteProducts
                   ? [
                       {
@@ -438,6 +499,202 @@ export function CatalogManagerClient() {
               ]}
             />
           </section>
+          {productDrawerOpen ? (
+            <div className="fixed inset-0 z-50">
+              <button className="absolute inset-0 bg-slate-950/45 backdrop-blur-sm" aria-label="Close product editor" onClick={cancelEditProduct} />
+              <aside className="absolute inset-y-0 right-0 flex w-full max-w-3xl flex-col bg-white shadow-2xl">
+                <header className="border-b border-slate-200 px-5 py-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h2 className="text-lg font-semibold text-slate-950">{editingProduct ? "Edit Product" : "New Product"}</h2>
+                      <p className="mt-1 text-sm text-slate-500">Manage publishing, media, categories, options, variants, and SEO.</p>
+                    </div>
+                    <button onClick={cancelEditProduct} className="rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600">Close</button>
+                  </div>
+                </header>
+                <form key={productFormKey} onSubmit={handleCreateProduct} className="flex min-h-0 flex-1 flex-col">
+                  <div className="border-b border-slate-200 p-5">
+                    <div className="flex flex-wrap gap-1 rounded-md border border-slate-200 bg-slate-50 p-1">
+                      {productEditorTabs.map((tab) => (
+                        <button key={tab} type="button" onClick={() => setProductEditorTab(tab)} className={`rounded-md px-3 py-2 text-sm font-medium ${productEditorTab === tab ? "bg-white text-slate-950 shadow-sm" : "text-slate-600 hover:text-slate-950"}`}>
+                          {tab}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+                    <div className={productEditorTab === "Basics" ? "space-y-4" : "hidden"}>
+                      <label className="block space-y-1 text-sm font-medium text-slate-700">
+                        <span>Title</span>
+                        <input name="name" value={productName} onChange={(event) => updateProductName(event.target.value)} autoComplete="off" className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm" placeholder="Handmade Gift Box..." />
+                      </label>
+                      <label className="block space-y-1 text-sm font-medium text-slate-700">
+                        <span>Slug / SKU</span>
+                        <input name="sku" value={productSku} readOnly autoComplete="off" className="h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700" placeholder="Auto SKU" />
+                      </label>
+                      <label className="block space-y-1 text-sm font-medium text-slate-700">
+                        <span>Status</span>
+                        <select name="status" defaultValue={editingProduct?.status || "draft"} className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm">
+                          <option value="draft">Draft</option>
+                          <option value="active">Published</option>
+                          <option value="inactive">Inactive</option>
+                          <option value="archived">Archived</option>
+                        </select>
+                      </label>
+                      <div className="flex flex-wrap gap-5">
+                        <label className="flex items-center gap-2 text-sm text-slate-700">
+                          <input type="checkbox" name="isFeatured" defaultChecked={editingProduct?.isFeatured || false} className="size-4 rounded border-slate-300 text-teal-600" />
+                          Featured Product
+                        </label>
+                      </div>
+                      <label className="block space-y-1 text-sm font-medium text-slate-700">
+                        <span>Short description</span>
+                        <textarea name="shortDescription" defaultValue={editingProduct?.shortDescription || ""} className="min-h-20 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Short product summary..." />
+                      </label>
+                      <label className="block space-y-1 text-sm font-medium text-slate-700">
+                        <span>Description</span>
+                        <textarea name="description" defaultValue={editingProduct?.description || ""} minLength={10} className="min-h-40 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Describe materials, sizing, care, and what is included..." />
+                      </label>
+                    </div>
+                    <div className={productEditorTab === "Media" ? "space-y-4" : "hidden"}>
+                      <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4">
+                        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-700">
+                          {uploadingImages ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} />}
+                          {uploadingImages ? "Uploading..." : "Select product images"}
+                          <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="sr-only" onChange={handleProductImageUpload} disabled={uploadingImages || uploadedImageAssets.length >= 10} />
+                        </label>
+                        {uploadedImageAssets.length ? (
+                          <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-4">
+                            {uploadedImageAssets.map((asset) => (
+                              <div key={`${asset.provider || "image"}-${asset.publicId || asset.url}`} className="group relative aspect-square overflow-hidden rounded-md border border-slate-200 bg-white">
+                                <Image src={resolveImageUrl(asset.url)} alt="Uploaded product" fill sizes="140px" unoptimized={shouldBypassImageOptimizer(resolveImageUrl(asset.url))} className="object-cover" />
+                                <button type="button" onClick={() => removeUploadedProductImage(asset)} className="absolute right-1 top-1 inline-flex size-7 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm hover:text-rose-600">
+                                  <X size={15} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-3 text-xs text-slate-500">JPG, PNG, WEBP, GIF. Max 5MB each, up to 10 images.</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className={productEditorTab === "Categories" ? "space-y-4" : "hidden"}>
+                      <label className="block space-y-1 text-sm font-medium text-slate-700">
+                        <span>Category</span>
+                        <select name="categoryId" defaultValue={editingProduct ? productCategoryId(editingProduct) : ""} className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm">
+                          <option value="">Select category</option>
+                          {categories.map((category) => (
+                            <option key={category._id} value={category._id}>
+                              {category.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                    <div className={productEditorTab === "Options & Variants" ? "space-y-5" : "hidden"}>
+                      <section className="rounded-lg border border-slate-200 p-4">
+                        <h3 className="font-semibold text-slate-950">Options</h3>
+                        <p className="mt-1 text-sm text-slate-500">Examples: Size, Color, Material. Values become variant rows.</p>
+                        <button type="button" onClick={addVariant} className="mt-4 h-10 w-full rounded-md border border-slate-200 text-sm font-semibold text-slate-700">Add Custom Variant</button>
+                      </section>
+                      <section className="rounded-lg border border-slate-200 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <h3 className="font-semibold text-slate-950">Variant Matrix</h3>
+                            <p className="mt-1 text-sm text-slate-500">Tune SKU, stock, prices, status, and image per variant.</p>
+                          </div>
+                          <button type="button" onClick={addVariant} className="rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">Generate Variants</button>
+                        </div>
+                        <div className="mt-4 space-y-4">
+                          {productVariants.map((variant) => (
+                            <div key={variant.id} className="rounded-lg border border-slate-200 bg-white p-4">
+                              <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_110px_110px_auto] lg:items-end">
+                                <label className="block space-y-1 text-sm font-medium text-slate-700">
+                                  <span>Variant Name</span>
+                                  <input value={variant.variantName} onChange={(event) => updateVariant(variant.id, "variantName", event.target.value)} className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm" placeholder="Default" />
+                                </label>
+                                <label className="block space-y-1 text-sm font-medium text-slate-700">
+                                  <span>SKU</span>
+                                  <input value={variant.sku} onChange={(event) => updateVariant(variant.id, "sku", event.target.value.toUpperCase())} className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm" placeholder={productSku || "SKU"} />
+                                </label>
+                                <label className="block space-y-1 text-sm font-medium text-slate-700">
+                                  <span>Stock</span>
+                                  <input value={variant.stock} onChange={(event) => updateVariant(variant.id, "stock", Number(event.target.value || 0))} type="number" min="0" className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm" />
+                                </label>
+                                <label className="block space-y-1 text-sm font-medium text-slate-700">
+                                  <span>Reserved</span>
+                                  <input value={variant.reservedStock || 0} onChange={(event) => updateVariant(variant.id, "reservedStock", Number(event.target.value || 0))} type="number" min="0" className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm" />
+                                </label>
+                                <label className="flex h-10 items-center gap-2 text-sm font-medium text-slate-700">
+                                  <input checked={variant.status === "active"} onChange={(event) => updateVariant(variant.id, "status", event.target.checked ? "active" : "inactive")} type="checkbox" className="size-4 rounded border-slate-300 text-teal-600" />
+                                  Active
+                                </label>
+                              </div>
+                              <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+                                <p className="text-sm font-medium text-slate-700">Variant Image</p>
+                                {variant.image ? (
+                                  <div className="mt-2 flex items-center gap-3">
+                                    <div className="relative size-16 overflow-hidden rounded-md border border-slate-200 bg-white">
+                                      <Image src={resolveImageUrl(variant.image)} alt={variant.variantName} fill sizes="64px" unoptimized={shouldBypassImageOptimizer(resolveImageUrl(variant.image))} className="object-cover" />
+                                    </div>
+                                    <button type="button" onClick={() => setVariantImage(variant.id, "")} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">Remove image</button>
+                                  </div>
+                                ) : null}
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  {uploadedImageAssets.length ? uploadedImageAssets.map((asset) => (
+                                    <button key={`${variant.id}-${asset.url}`} type="button" onClick={() => setVariantImage(variant.id, asset.url)} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
+                                      Pick image
+                                    </button>
+                                  )) : <span className="text-sm text-slate-500">Upload product images in the Media tab, then pick one here.</span>}
+                                </div>
+                              </div>
+                              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                <label className="block space-y-1 text-sm font-medium text-slate-700">
+                                  <span>BDT Price</span>
+                                  <input value={variant.price} onChange={(event) => updateVariant(variant.id, "price", Number(event.target.value || 0))} type="number" min="0" step="0.01" className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm" />
+                                </label>
+                                <label className="block space-y-1 text-sm font-medium text-slate-700">
+                                  <span>Low stock threshold</span>
+                                  <input value={variant.lowStockThreshold || 5} onChange={(event) => updateVariant(variant.id, "lowStockThreshold", Number(event.target.value || 0))} type="number" min="0" className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm" />
+                                </label>
+                              </div>
+                              <button type="button" onClick={() => removeVariant(variant.id)} disabled={productVariants.length === 1} className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-50">Remove Variant</button>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    </div>
+                    <div className={productEditorTab === "Configurator" ? "space-y-4" : "hidden"}>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="block space-y-1 text-sm font-medium text-slate-700">
+                          <span>Discount type</span>
+                          <select name="discountType" defaultValue={editingProduct?.discountType || "none"} className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm">
+                            <option value="none">No discount</option>
+                            <option value="fixed">Fixed</option>
+                            <option value="percentage">Percentage</option>
+                          </select>
+                        </label>
+                        <label className="block space-y-1 text-sm font-medium text-slate-700">
+                          <span>Discount value</span>
+                          <input name="discountValue" type="number" min="0" defaultValue={editingProduct?.discountValue ?? 0} className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm" placeholder="Discount" />
+                        </label>
+                      </div>
+                    </div>
+                    <div className={productEditorTab === "SEO" ? "space-y-4" : "hidden"}>
+                      <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                        SEO uses the product title, slug, and description for now. Dedicated metadata fields can be added without changing this product flow.
+                      </div>
+                    </div>
+                  </div>
+                  <footer className="flex justify-between border-t border-slate-200 bg-slate-50 px-5 py-4">
+                    <button type="button" onClick={cancelEditProduct} className="rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700">Cancel</button>
+                    <button disabled={saving || uploadingImages} className="rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-400">{editingProduct ? "Save Product" : "Save Product"}</button>
+                  </footer>
+                </form>
+              </aside>
+            </div>
+          ) : null}
         </div>
       ) : null}
       {activeTab === "categories" ? (
