@@ -3,20 +3,19 @@
 import type { Product } from "@/types/ecommerce";
 import { getProductImageUrl, resolveImageUrl, shouldBypassImageOptimizer } from "@/utils/imageUrl";
 import { addToCart, getVariantLabel, toggleWishlist } from "@/utils/guestStore";
+import { formatMoney } from "@/utils/money";
 import { Heart, ShoppingCart } from "lucide-react";
 import Image from "next/image";
 import { useMemo, useState } from "react";
 
-const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
-
-function discountText(discountType?: Product["discountType"], discountValue = 0) {
+function discountText(discountType?: Product["discountType"], discountValue = 0, currency = "BDT") {
   if (!discountValue || discountType === "none") return "";
   if (discountType === "percentage") return `${discountValue}% off`;
-  if (discountType === "fixed") return `${money.format(discountValue)} off`;
+  if (discountType === "fixed") return `${formatMoney(discountValue, currency)} off`;
   return "";
 }
 
-export function ProductDetailClient({ product }: { product: Product }) {
+export function ProductDetailClient({ product, currency = "BDT" }: { product: Product; currency?: string }) {
   const activeVariants = useMemo(() => (product.productType === "variant" ? product.variants?.filter((variant) => variant.status === "active") || [] : []), [product.productType, product.variants]);
   const optionGroups = useMemo(() => {
     const groups = new Map<string, string[]>();
@@ -42,7 +41,7 @@ export function ProductDetailClient({ product }: { product: Product }) {
   const compareAtPrice = selectedVariant
     ? selectedVariant.compareAtPrice || (selectedVariant.price > price ? selectedVariant.price : null)
     : product.compareAtPrice || (product.price > price ? product.price : null);
-  const priceDiscountText = selectedVariant ? discountText(selectedVariant.discountType, selectedVariant.discountValue) : discountText(product.discountType, product.discountValue);
+  const priceDiscountText = selectedVariant ? discountText(selectedVariant.discountType, selectedVariant.discountValue, currency) : discountText(product.discountType, product.discountValue, currency);
   const availableStock = selectedVariant ? Math.max((selectedVariant.stock || 0) - (selectedVariant.reservedStock || 0), 0) : product.stockQuantity ?? product.stock ?? 0;
   const sku = selectedVariant?.sku || product.sku;
   const selectedLabel = getVariantLabel(selectedVariant);
@@ -71,8 +70,8 @@ export function ProductDetailClient({ product }: { product: Product }) {
           </span>
         </div>
         <div className="mt-6 flex items-center gap-4">
-          <span className="text-3xl font-semibold text-slate-950">{money.format(price)}</span>
-          {compareAtPrice && compareAtPrice > price ? <span className="text-lg text-slate-400 line-through">{money.format(compareAtPrice)}</span> : null}
+          <span className="text-3xl font-semibold text-slate-950">{formatMoney(price, currency)}</span>
+          {compareAtPrice && compareAtPrice > price ? <span className="text-lg text-slate-400 line-through">{formatMoney(compareAtPrice, currency)}</span> : null}
           {priceDiscountText ? <span className="rounded-full bg-rose-50 px-3 py-1 text-sm font-semibold text-rose-600">{priceDiscountText}</span> : null}
         </div>
         {optionGroups.length ? (

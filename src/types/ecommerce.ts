@@ -336,6 +336,7 @@ export type StoreSetting = {
   _id?: string;
   shopName: string;
   logo?: string;
+  currency?: string;
   contactPhone?: string;
   email?: string;
   address?: string;

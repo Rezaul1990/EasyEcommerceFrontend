@@ -5,11 +5,11 @@ import { ErrorState, LoadingState } from "@/components/admin/ui/States";
 import { archiveAdminProduct, createAdminCategory, createAdminCoupon, createAdminProduct, deleteAdminCategory, deleteAdminCoupon, deleteAdminProductImage, getAdminCategories, getAdminCoupons, getAdminProducts, getCurrentAdmin, updateAdminProduct, uploadAdminProductImages } from "@/services/apiClient";
 import type { AdminUser, Category, Coupon, ImageAsset, Product, ProductVariant } from "@/types/ecommerce";
 import { getProductImageUrl, resolveImageUrl, shouldBypassImageOptimizer } from "@/utils/imageUrl";
+import { formatMoney } from "@/utils/money";
 import { Archive, FolderPlus, ImageIcon, Loader2, Pencil, Plus, TicketPercent, Trash2, X } from "lucide-react";
 import Image from "next/image";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 
-const moneyFormatter = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const catalogTabs = ["products", "categories", "coupons"] as const;
 const productEditorTabs = ["Basics", "Media", "Categories", "Options & Variants", "Configurator", "SEO"] as const;
 type CatalogTab = (typeof catalogTabs)[number];
@@ -593,7 +593,7 @@ export function CatalogManagerClient() {
                 { key: "status", header: "Status", render: (row) => <span className={`rounded-md px-2 py-1 text-xs font-semibold uppercase ${row.status === "active" ? "bg-emerald-50 text-emerald-700" : row.status === "archived" ? "bg-slate-100 text-slate-600" : "bg-amber-50 text-amber-700"}`}>{row.status}</span> },
                 { key: "category", header: "Categories", render: (row) => <span className="text-slate-600">{typeof row.categoryId === "object" ? row.categoryId?.name : "None"}</span> },
                 { key: "stock", header: "Stock", render: (row) => <span>{row.stockQuantity ?? row.stock ?? 0} avail</span> },
-                { key: "price", header: "Price", render: (row) => <span>{moneyFormatter.format(row.finalPrice || row.price)}</span> },
+                { key: "price", header: "Price", render: (row) => <span>{formatMoney(row.finalPrice || row.price)}</span> },
                 ...(canUpdateProducts || canDeleteProducts
                   ? [
                       {
@@ -936,7 +936,7 @@ export function CatalogManagerClient() {
               getRowKey={(row) => row._id}
               columns={[
                 { key: "code", header: "Code", render: (row) => <span className="font-semibold text-slate-950">{row.code}</span> },
-                { key: "discount", header: "Discount", render: (row) => <span>{row.discountType === "fixed" ? moneyFormatter.format(row.discountValue) : `${row.discountValue}%`}</span> },
+                { key: "discount", header: "Discount", render: (row) => <span>{row.discountType === "fixed" ? formatMoney(row.discountValue) : `${row.discountValue}%`}</span> },
                 { key: "expiry", header: "Expiry", render: (row) => <span>{new Date(row.expiryDate).toLocaleDateString()}</span> },
                 { key: "status", header: "Status", render: (row) => <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">{row.status}</span> },
                 ...(canDeleteCoupons ? [{ key: "actions", header: "Actions", align: "right" as const, render: (row: Coupon) => <button onClick={() => removeCoupon(row._id)} className="inline-flex items-center gap-2 rounded-md border border-rose-200 px-3 py-2 text-sm text-rose-600"><Trash2 size={15} />Delete</button> }] : []),

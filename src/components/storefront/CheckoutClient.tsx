@@ -1,6 +1,6 @@
 "use client";
 
-import { createPublicOrder, getPublicStoreSettings, validatePublicCoupon } from "@/services/apiClient";
+import { createPublicOrder, getPublicDeliveryAreas, getPublicStoreSettings, validatePublicCoupon } from "@/services/apiClient";
 import { bdPostalCodes } from "@/constants/bdPostalCodes";
 import { clearCart, getCart, getCartItemPrice, getVariantLabel } from "@/utils/guestStore";
 import thanaData from "@bangladeshi/bangladesh-address/build/src/json/bd-thana.json";
@@ -8,7 +8,8 @@ import upazilaData from "@bangladeshi/bangladesh-address/build/src/json/bd-upazi
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { GuestCartItem } from "@/utils/guestStore";
-import type { StoreSetting } from "@/types/ecommerce";
+import type { DeliveryArea, StoreSetting } from "@/types/ecommerce";
+import { formatMoney } from "@/utils/money";
 
 const mongoIdPattern = /^[a-f\d]{24}$/i;
 type UpazilaRow = { upazila: string; district: string };
@@ -39,13 +40,10 @@ function fullAddressLine(houseDetails: string, area: string, district: string, p
   return [houseDetails.trim(), locationLine(area, district, postalCode)].filter(Boolean).join("\n");
 }
 
-function money(value: number) {
-  return `$${value.toFixed(2)}`;
-}
-
 export function CheckoutClient() {
   const [items, setItems] = useState<GuestCartItem[]>([]);
   const [storeSettings, setStoreSettings] = useState<StoreSetting | null>(null);
+  const [deliveryAreas, setDeliveryAreas] = useState<DeliveryArea[]>([]);
   const [error, setError] = useState("");
   const [orderNumber, setOrderNumber] = useState("");
   const [loading, setLoading] = useState(false);
@@ -57,12 +55,21 @@ export function CheckoutClient() {
   const [couponDiscount, setCouponDiscount] = useState(0);
   const [couponMessage, setCouponMessage] = useState("");
   const [couponLoading, setCouponLoading] = useState(false);
+  const currency = storeSettings?.currency || "BDT";
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + getCartItemPrice(item) * item.quantity, 0), [items]);
   const deliveryCharge = useMemo(() => {
     if (!selectedDistrict) return 0;
+    const selectedDistrictKey = normalizeLocation(selectedDistrict);
+    const selectedAreaKey = normalizeLocation(selectedArea);
+    const matchingArea = deliveryAreas.find((area) => {
+      const districtMatches = normalizeLocation(area.district) === selectedDistrictKey;
+      const areaMatches = selectedAreaKey && [area.area, area.upazila || ""].some((value) => normalizeLocation(value) === selectedAreaKey);
+      return districtMatches && areaMatches;
+    });
+    if (matchingArea) return Number(matchingArea.charge || 0);
     const charges = storeSettings?.deliveryCharges || {};
-    return normalizeLocation(selectedDistrict) === "dhaka" ? Number(charges.dhaka || 0) : Number(charges.outsideDhaka || 0);
-  }, [selectedDistrict, storeSettings]);
+    return selectedDistrictKey === "dhaka" ? Number(charges.dhaka || 0) : Number(charges.outsideDhaka || 0);
+  }, [deliveryAreas, selectedArea, selectedDistrict, storeSettings]);
   const orderTotal = Math.max(subtotal + deliveryCharge - couponDiscount, 0);
   const address = useMemo(() => fullAddressLine(houseDetails, selectedArea, selectedDistrict, postalCode), [houseDetails, postalCode, selectedArea, selectedDistrict]);
   const districts = useMemo(() => Array.from(new Set((upazilaData as UpazilaRow[]).map((item) => item.district))).sort((a, b) => a.localeCompare(b)), []);
@@ -104,6 +111,7 @@ export function CheckoutClient() {
       setItems(validItems);
     });
     getPublicStoreSettings().then(setStoreSettings).catch(() => setStoreSettings(null));
+    getPublicDeliveryAreas().then(setDeliveryAreas).catch(() => setDeliveryAreas([]));
   }, []);
 
   async function applyCoupon() {
@@ -226,16 +234,16 @@ export function CheckoutClient() {
                   {item.name} x {item.quantity}
                   {variantLabel ? <span className="block text-xs font-semibold text-teal-700">{variantLabel}</span> : null}
                 </span>
-                <span className="font-semibold">${(price * item.quantity).toFixed(2)}</span>
+                <span className="font-semibold">{formatMoney(price * item.quantity, currency)}</span>
               </div>
             );
           })}
         </div>
         <div className="mt-4 space-y-2 border-t border-slate-200 pt-3 text-sm">
-          <div className="flex justify-between"><span className="text-slate-600">Subtotal</span><span className="font-semibold">{money(subtotal)}</span></div>
-          <div className="flex justify-between"><span className="text-slate-600">Delivery charge</span><span className="font-semibold">{selectedDistrict ? money(deliveryCharge) : "Select district"}</span></div>
-          {couponDiscount > 0 ? <div className="flex justify-between text-teal-700"><span>Coupon discount</span><span className="font-semibold">-{money(couponDiscount)}</span></div> : null}
-          <div className="flex justify-between border-t border-slate-200 pt-3 text-base font-semibold"><span>Total</span><span>{money(orderTotal)}</span></div>
+          <div className="flex justify-between"><span className="text-slate-600">Subtotal</span><span className="font-semibold">{formatMoney(subtotal, currency)}</span></div>
+          <div className="flex justify-between"><span className="text-slate-600">Delivery charge</span><span className="font-semibold">{selectedDistrict ? formatMoney(deliveryCharge, currency) : "Select district"}</span></div>
+          {couponDiscount > 0 ? <div className="flex justify-between text-teal-700"><span>Coupon discount</span><span className="font-semibold">-{formatMoney(couponDiscount, currency)}</span></div> : null}
+          <div className="flex justify-between border-t border-slate-200 pt-3 text-base font-semibold"><span>Total</span><span>{formatMoney(orderTotal, currency)}</span></div>
         </div>
         <div className="mt-4">
           <label className="text-sm font-medium text-slate-700">

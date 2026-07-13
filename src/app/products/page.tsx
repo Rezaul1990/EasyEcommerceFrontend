@@ -2,14 +2,14 @@ import { contentValue } from "@/config/contentFields";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { CouponShowcase } from "@/components/storefront/CouponShowcase";
 import { ProductGrid } from "@/components/storefront/ProductGrid";
-import { getActiveCoupons, getCategories, getProducts, getPublicPageContent } from "@/services/apiClient";
+import { getActiveCoupons, getCategories, getProducts, getPublicPageContent, getPublicStoreSettings } from "@/services/apiClient";
 
 export const metadata = {
   title: "Products | EasyEcommerce",
 };
 
 export default async function ProductsPage() {
-  const [products, categories, coupons, pageContent] = await Promise.all([getProducts(), getCategories(), getActiveCoupons(), getPublicPageContent("products")]);
+  const [products, categories, coupons, pageContent, storeSettings] = await Promise.all([getProducts(), getCategories(), getActiveCoupons(), getPublicPageContent("products"), getPublicStoreSettings()]);
   const content = pageContent.content;
 
   return (
@@ -24,7 +24,7 @@ export default async function ProductsPage() {
           </div>
         </div>
         <CouponShowcase coupons={coupons} />
-        <ProductGrid products={products} categories={categories} />
+        <ProductGrid products={products} categories={categories} currency={storeSettings?.currency || "BDT"} />
       </main>
     </>
   );

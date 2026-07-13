@@ -4,6 +4,7 @@ import { DataTable } from "@/components/admin/ui/DataTable";
 import { ErrorState, LoadingState } from "@/components/admin/ui/States";
 import { createDeliveryArea, getDeliveryAreas, getPaymentMethods, getStoreSettings, updatePaymentMethods, updateStoreSettings } from "@/services/apiClient";
 import type { DeliveryArea, PaymentMethodSetting, StoreSetting } from "@/types/ecommerce";
+import { formatMoney } from "@/utils/money";
 import { FormEvent, useEffect, useState } from "react";
 
 export function SettingsManagerClient() {
@@ -42,6 +43,7 @@ export function SettingsManagerClient() {
     try {
       const data = await updateStoreSettings({
         shopName: String(form.get("shopName") || ""),
+        currency: String(form.get("currency") || "BDT"),
         contactPhone: String(form.get("contactPhone") || ""),
         email: String(form.get("email") || ""),
         address: String(form.get("address") || ""),
@@ -105,10 +107,18 @@ export function SettingsManagerClient() {
       <form onSubmit={handleStore} className="grid gap-5 rounded-lg border border-slate-200 bg-white p-5 md:grid-cols-2">
         <label className="space-y-2 text-sm font-medium text-slate-700"><span>Store name</span><input name="shopName" defaultValue={store?.shopName} className="h-11 w-full rounded-md border border-slate-300 px-3" required /></label>
         <label className="space-y-2 text-sm font-medium text-slate-700"><span>Email</span><input name="email" defaultValue={store?.email} className="h-11 w-full rounded-md border border-slate-300 px-3" /></label>
+        <label className="space-y-2 text-sm font-medium text-slate-700">
+          <span>Currency</span>
+          <select name="currency" defaultValue={store?.currency || "BDT"} className="h-11 w-full rounded-md border border-slate-300 bg-white px-3">
+            <option value="BDT">BDT - Bangladeshi Taka</option>
+            <option value="USD">USD - US Dollar</option>
+          </select>
+        </label>
         <label className="space-y-2 text-sm font-medium text-slate-700"><span>Contact phone</span><input name="contactPhone" defaultValue={store?.contactPhone} className="h-11 w-full rounded-md border border-slate-300 px-3" /></label>
         <label className="space-y-2 text-sm font-medium text-slate-700"><span>Facebook</span><input name="facebook" defaultValue={store?.socialLinks?.facebook} className="h-11 w-full rounded-md border border-slate-300 px-3" /></label>
         <label className="space-y-2 text-sm font-medium text-slate-700"><span>Dhaka delivery charge</span><input name="dhakaDeliveryCharge" type="number" min="0" defaultValue={store?.deliveryCharges?.dhaka ?? 0} className="h-11 w-full rounded-md border border-slate-300 px-3" /></label>
         <label className="space-y-2 text-sm font-medium text-slate-700"><span>Outside Dhaka delivery charge</span><input name="outsideDhakaDeliveryCharge" type="number" min="0" defaultValue={store?.deliveryCharges?.outsideDhaka ?? 0} className="h-11 w-full rounded-md border border-slate-300 px-3" /></label>
+        <p className="rounded-md border border-teal-100 bg-teal-50 px-3 py-2 text-sm text-teal-800 md:col-span-2">Checkout uses these default delivery charges. If a matching delivery area below exists, that area charge will be used instead.</p>
         <label className="space-y-2 text-sm font-medium text-slate-700 md:col-span-2"><span>Address</span><textarea name="address" defaultValue={store?.address} className="min-h-24 w-full rounded-md border border-slate-300 px-3 py-2" /></label>
         <input name="instagram" defaultValue={store?.socialLinks?.instagram} className="hidden" />
         <input name="youtube" defaultValue={store?.socialLinks?.youtube} className="hidden" />
@@ -144,7 +154,7 @@ export function SettingsManagerClient() {
             { key: "district", header: "District", render: (row) => row.district },
             { key: "area", header: "Area", render: (row) => row.area },
             { key: "upazila", header: "Upazila", render: (row) => row.upazila || "-" },
-            { key: "charge", header: "Charge", render: (row) => `$${row.charge}` },
+            { key: "charge", header: "Charge", render: (row) => formatMoney(row.charge, store?.currency || "BDT") },
           ]} />
         </div>
       </section>

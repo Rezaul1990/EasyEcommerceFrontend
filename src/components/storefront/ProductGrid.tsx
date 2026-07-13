@@ -10,7 +10,7 @@ function categoryIdForProduct(product: Product) {
   return product.categoryId._id;
 }
 
-export function ProductGrid({ products, categories = [] }: { products: Product[]; categories?: Category[] }) {
+export function ProductGrid({ products, categories = [], currency = "BDT" }: { products: Product[]; categories?: Category[]; currency?: string }) {
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const filteredProducts = useMemo(() => {
     if (!selectedCategoryId) return products;
@@ -53,7 +53,7 @@ export function ProductGrid({ products, categories = [] }: { products: Product[]
       {filteredProducts.length ? (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {filteredProducts.map((product) => (
-            <ProductCard key={product._id} product={product} />
+            <ProductCard key={product._id} product={product} currency={currency} />
           ))}
         </div>
       ) : (
