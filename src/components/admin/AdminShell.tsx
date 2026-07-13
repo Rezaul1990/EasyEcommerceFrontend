@@ -15,7 +15,7 @@ const navItems = [
   { href: "/admin/coupons", label: "Coupons", module: "coupons", icon: TicketPercent },
   { href: "/admin/inventory", label: "Inventory", module: "inventory", icon: PackageSearch },
   { href: "/admin/reports", label: "Reports", module: "reports", icon: BarChart3 },
-  { href: "/admin/access", label: "Access", module: "staff", icon: Users },
+  { href: "/admin/access", label: "Team & Permissions", module: "staff", icon: Users },
   { href: "/admin/settings", label: "Settings", module: "settings", icon: Settings },
 ];
 

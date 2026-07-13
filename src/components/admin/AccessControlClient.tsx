@@ -1,6 +1,6 @@
 "use client";
 
-import { createRole, createUserInvite, getPermissionRegistry, getRoles, getUsers, resendUserInvite } from "@/services/apiClient";
+import { createRole, createUserInvite, getCurrentAdmin, getPermissionRegistry, getRoles, getUsers, resendUserInvite } from "@/services/apiClient";
 import type { AdminUser, InviteResponse, Permission, Role } from "@/types/ecommerce";
 import { Copy, Plus, RefreshCcw, ShieldCheck, UserPlus } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
@@ -13,6 +13,7 @@ export function AccessControlClient() {
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [roleName, setRoleName] = useState("");
   const [roleDescription, setRoleDescription] = useState("");
@@ -33,19 +34,33 @@ export function AccessControlClient() {
       return groups;
     }, {});
   }, [permissions]);
+  const hasPermission = (permission: string) => Boolean(currentUser?.role?.slug === "owner" || currentUser?.role?.permissions.includes(permission));
+  const canViewStaff = hasPermission("staff.view");
+  const canCreateStaff = hasPermission("staff.create");
+  const canCreateRoles = hasPermission("roles.create");
 
   useEffect(() => {
     let ignore = false;
-    Promise.all([getPermissionRegistry(), getRoles(), getUsers()])
-      .then(([permissionData, roleData, userData]) => {
+    getCurrentAdmin()
+      .then(async (user) => {
+        const can = (permission: string) => Boolean(user.role?.slug === "owner" || user.role?.permissions.includes(permission));
+        const [permissionData, roleData, userData] = await Promise.all([
+          can("roles.view") ? getPermissionRegistry() : Promise.resolve([]),
+          can("roles.view") || can("staff.create") ? getRoles() : Promise.resolve([]),
+          can("staff.view") ? getUsers() : Promise.resolve([]),
+        ]);
+        return { user, permissionData, roleData, userData };
+      })
+      .then(({ user, permissionData, roleData, userData }) => {
         if (ignore) return;
+        setCurrentUser(user);
         setPermissions(permissionData);
         setRoles(roleData);
         setUsers(userData);
         setUserRoleId(roleData.find((role) => role.slug !== "owner")?._id || roleData[0]?._id || "");
       })
       .catch((err) => {
-        if (!ignore) setError(err instanceof Error ? err.message : "Access data could not load");
+        if (!ignore) setError(err instanceof Error ? err.message : "Team and permission data could not load");
       })
       .finally(() => {
         if (!ignore) setLoading(false);
@@ -124,7 +139,7 @@ export function AccessControlClient() {
   }
 
   if (loading) {
-    return <section className="rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-600">Loading access control...</section>;
+    return <section className="rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-600">Loading team and permissions...</section>;
   }
 
   return (
@@ -145,11 +160,12 @@ export function AccessControlClient() {
           </div>
         </section>
       ) : null}
-      <div className="grid gap-5 xl:grid-cols-[380px_1fr]">
-        <section className="rounded-lg border border-slate-200 bg-white p-5">
+      {canCreateStaff || canCreateRoles ? (
+        <div className={`grid gap-5 ${canCreateStaff && canCreateRoles ? "xl:grid-cols-[380px_1fr]" : ""}`}>
+          {canCreateStaff ? <section className="rounded-lg border border-slate-200 bg-white p-5">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950">
             <UserPlus size={19} />
-            Invite user
+            Staff invitation
           </h2>
           <form onSubmit={handleCreateUser} className="mt-4 space-y-3">
             <label className="block space-y-1 text-sm font-medium text-slate-700">
@@ -172,14 +188,14 @@ export function AccessControlClient() {
             </label>
             <button disabled={savingUser} className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-400">
               <Plus size={16} />
-              {savingUser ? "Creating..." : "Create invite"}
+              {savingUser ? "Creating..." : "Create staff invite"}
             </button>
           </form>
-        </section>
-        <section className="rounded-lg border border-slate-200 bg-white p-5">
+        </section> : null}
+          {canCreateRoles ? <section className="rounded-lg border border-slate-200 bg-white p-5">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950">
             <ShieldCheck size={19} />
-            Create role
+            Role builder
           </h2>
           <form onSubmit={handleCreateRole} className="mt-4 space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
@@ -209,14 +225,15 @@ export function AccessControlClient() {
             </div>
             <button disabled={savingRole} className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-400">
               <Plus size={16} />
-              {savingRole ? "Saving..." : "Create role"}
+              {savingRole ? "Saving..." : "Create permission role"}
             </button>
           </form>
-        </section>
+        </section> : null}
       </div>
-      <section className="rounded-lg border border-slate-200 bg-white">
+      ) : null}
+      {canViewStaff ? <section className="rounded-lg border border-slate-200 bg-white">
         <div className="border-b border-slate-200 p-4">
-          <h2 className="text-lg font-semibold text-slate-950">Users</h2>
+          <h2 className="text-lg font-semibold text-slate-950">Team members</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-left text-sm">
@@ -251,7 +268,7 @@ export function AccessControlClient() {
             </tbody>
           </table>
         </div>
-      </section>
+      </section> : null}
     </div>
   );
 }
