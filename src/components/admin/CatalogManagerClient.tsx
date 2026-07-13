@@ -2,14 +2,16 @@
 
 import { DataTable } from "@/components/admin/ui/DataTable";
 import { ErrorState, LoadingState } from "@/components/admin/ui/States";
-import { archiveAdminProduct, createAdminCategory, createAdminCoupon, createAdminProduct, deleteAdminCategory, deleteAdminCoupon, deleteAdminProductImage, getAdminCategories, getAdminCoupons, getAdminProducts, updateAdminProduct, uploadAdminProductImages } from "@/services/apiClient";
-import type { Category, Coupon, ImageAsset, Product } from "@/types/ecommerce";
+import { archiveAdminProduct, createAdminCategory, createAdminCoupon, createAdminProduct, deleteAdminCategory, deleteAdminCoupon, deleteAdminProductImage, getAdminCategories, getAdminCoupons, getAdminProducts, getCurrentAdmin, updateAdminProduct, uploadAdminProductImages } from "@/services/apiClient";
+import type { AdminUser, Category, Coupon, ImageAsset, Product } from "@/types/ecommerce";
 import { getProductImageUrl, resolveImageUrl, shouldBypassImageOptimizer } from "@/utils/imageUrl";
 import { Archive, FolderPlus, ImageIcon, Loader2, Pencil, Plus, TicketPercent, Trash2, X } from "lucide-react";
 import Image from "next/image";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 
 const moneyFormatter = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const catalogTabs = ["products", "categories", "coupons"] as const;
+type CatalogTab = (typeof catalogTabs)[number];
 
 function makeSkuBase(value: string) {
   const base = value
@@ -38,7 +40,8 @@ export function CatalogManagerClient() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
-  const [activeTab, setActiveTab] = useState<"products" | "categories" | "coupons">("products");
+  const [activeTab, setActiveTab] = useState<CatalogTab>("products");
+  const [user, setUser] = useState<AdminUser | null>(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -51,14 +54,47 @@ export function CatalogManagerClient() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productFormKey, setProductFormKey] = useState(0);
 
+  const hasPermission = (permission: string) => Boolean(user?.role?.slug === "owner" || user?.role?.permissions.includes(permission));
+  const canViewProducts = hasPermission("products.view");
+  const canCreateProducts = hasPermission("products.create");
+  const canUpdateProducts = hasPermission("products.update");
+  const canDeleteProducts = hasPermission("products.delete");
+  const canViewCategories = hasPermission("categories.view");
+  const canCreateCategories = hasPermission("categories.create");
+  const canDeleteCategories = hasPermission("categories.delete");
+  const canViewCoupons = hasPermission("coupons.view");
+  const canCreateCoupons = hasPermission("coupons.create");
+  const canDeleteCoupons = hasPermission("coupons.delete");
+  const visibleTabs = catalogTabs.filter((tab) => {
+    if (tab === "products") return canViewProducts;
+    if (tab === "categories") return canViewCategories;
+    return canViewCoupons;
+  });
+
   useEffect(() => {
     let ignore = false;
-    Promise.all([getAdminCategories(), getAdminProducts(), getAdminCoupons()])
-      .then(([categoryData, productData, couponData]) => {
+    getCurrentAdmin()
+      .then(async (currentUser) => {
+        const can = (permission: string) => Boolean(currentUser.role?.slug === "owner" || currentUser.role?.permissions.includes(permission));
+        const nextTabs = catalogTabs.filter((tab) => {
+          if (tab === "products") return can("products.view");
+          if (tab === "categories") return can("categories.view");
+          return can("coupons.view");
+        });
+        const [categoryData, productData, couponData] = await Promise.all([
+          can("categories.view") || can("products.create") || can("products.update") ? getAdminCategories() : Promise.resolve([]),
+          can("products.view") ? getAdminProducts() : Promise.resolve([]),
+          can("coupons.view") ? getAdminCoupons() : Promise.resolve([]),
+        ]);
+        return { currentUser, nextTabs, categoryData, productData, couponData };
+      })
+      .then(({ currentUser, nextTabs, categoryData, productData, couponData }) => {
         if (ignore) return;
+        setUser(currentUser);
         setCategories(categoryData);
         setProducts(productData);
         setCoupons(couponData);
+        setActiveTab(nextTabs[0] || "products");
       })
       .catch((err) => {
         if (!ignore) setError(err instanceof Error ? err.message : "Catalog data could not load");
@@ -272,26 +308,28 @@ export function CatalogManagerClient() {
   }
 
   if (loading) return <LoadingState label="Loading catalog..." />;
+  if (!visibleTabs.length) return null;
 
   return (
     <div className="space-y-5">
       {error ? <ErrorState message={error} /> : null}
       {success ? <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{success}</p> : null}
       <div className="flex flex-wrap gap-2">
-        {(["products", "categories", "coupons"] as const).map((tab) => (
+        {visibleTabs.map((tab) => (
           <button key={tab} onClick={() => setActiveTab(tab)} className={`rounded-md px-3 py-2 text-sm font-semibold capitalize ${activeTab === tab ? "bg-teal-600 text-white" : "border border-slate-200 bg-white text-slate-700"}`}>
             {tab}
           </button>
         ))}
       </div>
       {activeTab === "products" ? (
-        <div className="grid gap-5 xl:grid-cols-[380px_1fr]">
-          <section className="rounded-lg border border-slate-200 bg-white p-5">
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950">
-              <Plus size={18} />
-              {editingProduct ? "Edit product" : "Add product"}
-            </h2>
-            <form key={productFormKey} onSubmit={handleCreateProduct} className="mt-4 grid gap-3">
+        <div className={`grid gap-5 ${canCreateProducts || (editingProduct && canUpdateProducts) ? "xl:grid-cols-[380px_1fr]" : ""}`}>
+          {canCreateProducts || (editingProduct && canUpdateProducts) ? (
+            <section className="rounded-lg border border-slate-200 bg-white p-5">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950">
+                <Plus size={18} />
+                {editingProduct ? "Edit product" : "Add product"}
+              </h2>
+              <form key={productFormKey} onSubmit={handleCreateProduct} className="mt-4 grid gap-3">
               <input name="name" value={productName} onChange={(event) => updateProductName(event.target.value)} autoComplete="off" className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Product name" required />
               <select name="categoryId" defaultValue={editingProduct ? productCategoryId(editingProduct) : ""} className="h-10 rounded-md border border-slate-300 px-3 text-sm" required>
                 <option value="">Select category</option>
@@ -351,12 +389,13 @@ export function CatalogManagerClient() {
                 <input type="checkbox" name="isFeatured" defaultChecked={editingProduct?.isFeatured || false} className="size-4 rounded border-slate-300 text-teal-600" />
                 Featured product
               </label>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <button disabled={saving || uploadingImages} className="rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-400">{editingProduct ? "Update product" : "Create product"}</button>
-                {editingProduct ? <button type="button" onClick={cancelEditProduct} className="rounded-md border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700">Cancel edit</button> : null}
-              </div>
-            </form>
-          </section>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button disabled={saving || uploadingImages} className="rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-400">{editingProduct ? "Update product" : "Create product"}</button>
+                  {editingProduct ? <button type="button" onClick={cancelEditProduct} className="rounded-md border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700">Cancel edit</button> : null}
+                </div>
+              </form>
+            </section>
+          ) : null}
           <section className="rounded-lg border border-slate-200 bg-white">
             <div className="border-b border-slate-200 p-4">
               <input value={search} onChange={(event) => setSearch(event.target.value)} className="h-10 w-full max-w-sm rounded-md border border-slate-300 px-3 text-sm" placeholder="Search name or SKU" />
@@ -381,30 +420,35 @@ export function CatalogManagerClient() {
                 { key: "stock", header: "Stock", render: (row) => <span>{row.stockQuantity ?? row.stock ?? 0}</span> },
                 { key: "price", header: "Price", render: (row) => <span>{moneyFormatter.format(row.finalPrice || row.price)}</span> },
                 { key: "status", header: "Status", render: (row) => <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">{row.status}</span> },
-                {
-                  key: "actions",
-                  header: "Actions",
-                  align: "right",
-                  render: (row) => (
-                    <div className="flex justify-end gap-2">
-                      <button onClick={() => startEditProduct(row)} className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700"><Pencil size={15} />Edit</button>
-                      <button disabled={row.status === "archived"} onClick={() => archiveProduct(row._id)} className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"><Archive size={15} />{row.status === "archived" ? "Archived" : "Archive"}</button>
-                    </div>
-                  ),
-                },
+                ...(canUpdateProducts || canDeleteProducts
+                  ? [
+                      {
+                        key: "actions",
+                        header: "Actions",
+                        align: "right" as const,
+                        render: (row: Product) => (
+                          <div className="flex justify-end gap-2">
+                            {canUpdateProducts ? <button onClick={() => startEditProduct(row)} className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700"><Pencil size={15} />Edit</button> : null}
+                            {canDeleteProducts ? <button disabled={row.status === "archived"} onClick={() => archiveProduct(row._id)} className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"><Archive size={15} />{row.status === "archived" ? "Archived" : "Archive"}</button> : null}
+                          </div>
+                        ),
+                      },
+                    ]
+                  : []),
               ]}
             />
           </section>
         </div>
       ) : null}
       {activeTab === "categories" ? (
-        <div className="grid gap-5 xl:grid-cols-[380px_1fr]">
-          <section className="rounded-lg border border-slate-200 bg-white p-5">
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950">
-              <FolderPlus size={18} />
-              Add category
-            </h2>
-            <form onSubmit={handleCreateCategory} className="mt-4 grid gap-3">
+        <div className={`grid gap-5 ${canCreateCategories ? "xl:grid-cols-[380px_1fr]" : ""}`}>
+          {canCreateCategories ? (
+            <section className="rounded-lg border border-slate-200 bg-white p-5">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950">
+                <FolderPlus size={18} />
+                Add category
+              </h2>
+              <form onSubmit={handleCreateCategory} className="mt-4 grid gap-3">
               <input name="name" className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Category name" required />
               <textarea name="description" className="min-h-20 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Description" />
               <div className="grid grid-cols-2 gap-3">
@@ -414,9 +458,10 @@ export function CatalogManagerClient() {
                   <option value="inactive">Inactive</option>
                 </select>
               </div>
-              <button disabled={saving} className="rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-400">Create category</button>
-            </form>
-          </section>
+                <button disabled={saving} className="rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-400">Create category</button>
+              </form>
+            </section>
+          ) : null}
           <section className="rounded-lg border border-slate-200 bg-white">
             <DataTable
               rows={categories}
@@ -425,20 +470,21 @@ export function CatalogManagerClient() {
                 { key: "name", header: "Category", render: (row) => <span className="font-medium text-slate-950">{row.name}</span> },
                 { key: "status", header: "Status", render: (row) => <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">{row.status || (row.isActive ? "active" : "inactive")}</span> },
                 { key: "sort", header: "Sort", render: (row) => <span>{row.sortOrder || 0}</span> },
-                { key: "actions", header: "Actions", align: "right", render: (row) => <button onClick={() => removeCategory(row._id)} className="inline-flex items-center gap-2 rounded-md border border-rose-200 px-3 py-2 text-sm text-rose-600"><Trash2 size={15} />Delete</button> },
+                ...(canDeleteCategories ? [{ key: "actions", header: "Actions", align: "right" as const, render: (row: Category) => <button onClick={() => removeCategory(row._id)} className="inline-flex items-center gap-2 rounded-md border border-rose-200 px-3 py-2 text-sm text-rose-600"><Trash2 size={15} />Delete</button> }] : []),
               ]}
             />
           </section>
         </div>
       ) : null}
       {activeTab === "coupons" ? (
-        <div className="grid gap-5 xl:grid-cols-[380px_1fr]">
-          <section className="rounded-lg border border-slate-200 bg-white p-5">
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950">
-              <TicketPercent size={18} />
-              Add coupon
-            </h2>
-            <form onSubmit={handleCreateCoupon} className="mt-4 grid gap-3">
+        <div className={`grid gap-5 ${canCreateCoupons ? "xl:grid-cols-[380px_1fr]" : ""}`}>
+          {canCreateCoupons ? (
+            <section className="rounded-lg border border-slate-200 bg-white p-5">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950">
+                <TicketPercent size={18} />
+                Add coupon
+              </h2>
+              <form onSubmit={handleCreateCoupon} className="mt-4 grid gap-3">
               <input name="code" className="h-10 rounded-md border border-slate-300 px-3 text-sm uppercase" placeholder="SAVE10" required />
               <input name="title" className="h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Coupon title" required />
               <textarea name="description" className="min-h-20 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Description" />
@@ -455,9 +501,10 @@ export function CatalogManagerClient() {
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
               </select>
-              <button disabled={saving} className="rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-400">Create coupon</button>
-            </form>
-          </section>
+                <button disabled={saving} className="rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-400">Create coupon</button>
+              </form>
+            </section>
+          ) : null}
           <section className="rounded-lg border border-slate-200 bg-white">
             <DataTable
               rows={coupons}
@@ -467,7 +514,7 @@ export function CatalogManagerClient() {
                 { key: "discount", header: "Discount", render: (row) => <span>{row.discountType === "fixed" ? moneyFormatter.format(row.discountValue) : `${row.discountValue}%`}</span> },
                 { key: "expiry", header: "Expiry", render: (row) => <span>{new Date(row.expiryDate).toLocaleDateString()}</span> },
                 { key: "status", header: "Status", render: (row) => <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">{row.status}</span> },
-                { key: "actions", header: "Actions", align: "right", render: (row) => <button onClick={() => removeCoupon(row._id)} className="inline-flex items-center gap-2 rounded-md border border-rose-200 px-3 py-2 text-sm text-rose-600"><Trash2 size={15} />Delete</button> },
+                ...(canDeleteCoupons ? [{ key: "actions", header: "Actions", align: "right" as const, render: (row: Coupon) => <button onClick={() => removeCoupon(row._id)} className="inline-flex items-center gap-2 rounded-md border border-rose-200 px-3 py-2 text-sm text-rose-600"><Trash2 size={15} />Delete</button> }] : []),
               ]}
             />
           </section>
