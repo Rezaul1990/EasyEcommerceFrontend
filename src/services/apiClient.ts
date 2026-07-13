@@ -264,6 +264,29 @@ export async function getActiveCoupons(): Promise<Coupon[]> {
   }
 }
 
+export async function validatePublicCoupon(payload: { code: string; subtotal: number; productIds: string[] }) {
+  return request<{ coupon: Coupon; discountAmount: number; finalTotal: number }>("/coupons/validate", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getPublicDeliveryAreas(): Promise<DeliveryArea[]> {
+  try {
+    return await request<DeliveryArea[]>("/delivery-areas");
+  } catch {
+    return [];
+  }
+}
+
+export async function getPublicStoreSettings(): Promise<StoreSetting | null> {
+  try {
+    return await request<StoreSetting>("/settings/store");
+  } catch {
+    return null;
+  }
+}
+
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   try {
     return await request<Product>(`/products/${slug}`);
@@ -450,6 +473,7 @@ export async function createPublicOrder(payload: {
   customer: { name: string; email?: string; phone: string; address: string; city: string; area: string; postalCode?: string };
   items: Array<{ productId: string; variantId?: string; variantSku?: string; quantity: number }>;
   paymentMethod: "cod" | "manual" | "bkash" | "nagad" | "card";
+  couponCode?: string;
   notes?: string;
 }) {
   return request<{ orderNumber: string; grandTotal: number }>("/orders", {

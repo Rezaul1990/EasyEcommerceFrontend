@@ -339,6 +339,7 @@ export type StoreSetting = {
   contactPhone?: string;
   email?: string;
   address?: string;
+  deliveryCharges?: { dhaka?: number; outsideDhaka?: number };
   socialLinks?: { facebook?: string; instagram?: string; youtube?: string; tiktok?: string };
 };
 

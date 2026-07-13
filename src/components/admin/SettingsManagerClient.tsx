@@ -45,6 +45,10 @@ export function SettingsManagerClient() {
         contactPhone: String(form.get("contactPhone") || ""),
         email: String(form.get("email") || ""),
         address: String(form.get("address") || ""),
+        deliveryCharges: {
+          dhaka: Number(form.get("dhakaDeliveryCharge") || 0),
+          outsideDhaka: Number(form.get("outsideDhakaDeliveryCharge") || 0),
+        },
         logo: store?.logo || "",
         socialLinks: {
           facebook: String(form.get("facebook") || ""),
@@ -103,6 +107,8 @@ export function SettingsManagerClient() {
         <label className="space-y-2 text-sm font-medium text-slate-700"><span>Email</span><input name="email" defaultValue={store?.email} className="h-11 w-full rounded-md border border-slate-300 px-3" /></label>
         <label className="space-y-2 text-sm font-medium text-slate-700"><span>Contact phone</span><input name="contactPhone" defaultValue={store?.contactPhone} className="h-11 w-full rounded-md border border-slate-300 px-3" /></label>
         <label className="space-y-2 text-sm font-medium text-slate-700"><span>Facebook</span><input name="facebook" defaultValue={store?.socialLinks?.facebook} className="h-11 w-full rounded-md border border-slate-300 px-3" /></label>
+        <label className="space-y-2 text-sm font-medium text-slate-700"><span>Dhaka delivery charge</span><input name="dhakaDeliveryCharge" type="number" min="0" defaultValue={store?.deliveryCharges?.dhaka ?? 0} className="h-11 w-full rounded-md border border-slate-300 px-3" /></label>
+        <label className="space-y-2 text-sm font-medium text-slate-700"><span>Outside Dhaka delivery charge</span><input name="outsideDhakaDeliveryCharge" type="number" min="0" defaultValue={store?.deliveryCharges?.outsideDhaka ?? 0} className="h-11 w-full rounded-md border border-slate-300 px-3" /></label>
         <label className="space-y-2 text-sm font-medium text-slate-700 md:col-span-2"><span>Address</span><textarea name="address" defaultValue={store?.address} className="min-h-24 w-full rounded-md border border-slate-300 px-3 py-2" /></label>
         <input name="instagram" defaultValue={store?.socialLinks?.instagram} className="hidden" />
         <input name="youtube" defaultValue={store?.socialLinks?.youtube} className="hidden" />
