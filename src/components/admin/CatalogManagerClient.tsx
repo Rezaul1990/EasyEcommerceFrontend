@@ -15,6 +15,7 @@ const productEditorTabs = ["Basics", "Media", "Categories", "Options & Variants"
 type CatalogTab = (typeof catalogTabs)[number];
 type ProductEditorTab = (typeof productEditorTabs)[number];
 type VariantDraft = ProductVariant & { id: string };
+type OptionDraft = { id: string; name: string; values: string[]; input: string };
 
 function makeSkuBase(value: string) {
   const base = value
@@ -49,6 +50,7 @@ function variantDraft(values?: Partial<ProductVariant>, fallbackSku = "DEFAULT")
     discountType: values?.discountType || "none",
     discountValue: values?.discountValue ?? 0,
     finalPrice: values?.finalPrice ?? values?.price ?? 0,
+    compareAtPrice: values?.compareAtPrice ?? null,
     stock: values?.stock ?? 0,
     reservedStock: values?.reservedStock ?? 0,
     lowStockThreshold: values?.lowStockThreshold ?? 5,
@@ -60,6 +62,31 @@ function variantDraft(values?: Partial<ProductVariant>, fallbackSku = "DEFAULT")
 function productVariantDrafts(product: Product | null, fallbackSku: string) {
   if (product?.variants?.length) return product.variants.map((variant) => variantDraft(variant, fallbackSku));
   return [variantDraft({ variantName: "Default", sku: product?.sku || fallbackSku, price: product?.price || 0, stock: product?.stockQuantity ?? product?.stock ?? 0, reservedStock: product?.reservedStock || 0, image: product?.imageUrls?.[0] || "" }, fallbackSku)];
+}
+
+function optionDraft(name = "", values: string[] = []): OptionDraft {
+  return { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, name, values, input: "" };
+}
+
+function optionDraftsFromVariants(variants: ProductVariant[] = []) {
+  const optionValues = new Map<string, Set<string>>();
+  variants.forEach((variant) => {
+    Object.entries(variant.options || {}).forEach(([name, value]) => {
+      if (!optionValues.has(name)) optionValues.set(name, new Set());
+      if (value) optionValues.get(name)?.add(value);
+    });
+  });
+  return Array.from(optionValues.entries()).map(([name, values]) => optionDraft(name, Array.from(values)));
+}
+
+function cartesianOptions(options: OptionDraft[]) {
+  const validOptions = options.filter((option) => option.name.trim() && option.values.length);
+  if (!validOptions.length) return [];
+  return validOptions.reduce<Array<Record<string, string>>>((rows, option) => {
+    const nextValues = option.values.map((value) => ({ [option.name.trim()]: value }));
+    if (!rows.length) return nextValues;
+    return rows.flatMap((row) => nextValues.map((value) => ({ ...row, ...value })));
+  }, []);
 }
 
 export function CatalogManagerClient() {
@@ -83,6 +110,7 @@ export function CatalogManagerClient() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productDrawerOpen, setProductDrawerOpen] = useState(false);
   const [productEditorTab, setProductEditorTab] = useState<ProductEditorTab>("Basics");
+  const [productOptions, setProductOptions] = useState<OptionDraft[]>([optionDraft()]);
   const [productVariants, setProductVariants] = useState<VariantDraft[]>([variantDraft()]);
   const [productFormKey, setProductFormKey] = useState(0);
 
@@ -184,6 +212,7 @@ export function CatalogManagerClient() {
     setSaving(true);
     setError("");
     try {
+      const hasGeneratedVariants = productVariants.length > 1 || productVariants.some((variant) => Object.keys(variant.options || {}).length > 0);
       const productPayload = {
         name: productName,
         categoryId: String(form.get("categoryId") || ""),
@@ -200,21 +229,22 @@ export function CatalogManagerClient() {
         isFeatured: form.get("isFeatured") === "on",
         discountType: String(form.get("discountType") || "none") as "none" | "fixed" | "percentage",
         discountValue: Number(form.get("discountValue") || 0),
-        productType: productVariants.length ? "variant" as const : "simple" as const,
+        productType: hasGeneratedVariants ? "variant" as const : "simple" as const,
         baseSku: productSku,
-        variants: productVariants.map((draft) => {
+        variants: hasGeneratedVariants ? productVariants.map((draft) => {
           const { id, ...variant } = draft;
           void id;
           return {
             ...variant,
             sku: variant.sku || productSku,
             price: Number(variant.price || 0),
+            compareAtPrice: variant.compareAtPrice ? Number(variant.compareAtPrice) : null,
             stock: Number(variant.stock || 0),
             reservedStock: Number(variant.reservedStock || 0),
             lowStockThreshold: Number(variant.lowStockThreshold || 5),
             status: variant.status || "active",
           };
-        }),
+        }) : [],
         imageUrls: uploadedImageAssets.map((asset) => asset.url),
         galleryImages: uploadedImageAssets.map((asset) => asset.url),
         imageAssets: uploadedImageAssets,
@@ -228,6 +258,8 @@ export function CatalogManagerClient() {
       setProductDrawerOpen(false);
       setProductEditorTab("Basics");
       setUploadedImageAssets([]);
+      setProductOptions([optionDraft()]);
+      setProductVariants([variantDraft()]);
       setProductFormKey((value) => value + 1);
       setSuccess(editingProduct ? "Product updated" : "Product created");
     } catch (err) {
@@ -260,6 +292,7 @@ export function CatalogManagerClient() {
     setProductName(product.name);
     setProductSku(product.sku);
     setUploadedImageAssets(productImageAssets(product));
+    setProductOptions(optionDraftsFromVariants(product.variants || []));
     setProductVariants(productVariantDrafts(product, product.sku));
     setProductDrawerOpen(true);
     setProductEditorTab("Basics");
@@ -276,6 +309,7 @@ export function CatalogManagerClient() {
     setProductDrawerOpen(false);
     setProductEditorTab("Basics");
     setUploadedImageAssets([]);
+    setProductOptions([optionDraft()]);
     setProductVariants([variantDraft()]);
     setError("");
     setProductFormKey((value) => value + 1);
@@ -286,6 +320,7 @@ export function CatalogManagerClient() {
     setProductName("");
     setProductSku("");
     setUploadedImageAssets([]);
+    setProductOptions([optionDraft()]);
     setProductVariants([variantDraft()]);
     setProductDrawerOpen(true);
     setProductEditorTab("Basics");
@@ -294,8 +329,50 @@ export function CatalogManagerClient() {
     setProductFormKey((value) => value + 1);
   }
 
-  function updateVariant(id: string, field: keyof ProductVariant, value: string | number) {
+  function updateVariant(id: string, field: keyof ProductVariant, value: string | number | null) {
     setProductVariants((current) => current.map((variant) => (variant.id === id ? { ...variant, [field]: value } : variant)));
+  }
+
+  function addOption() {
+    setProductOptions((current) => [...current, optionDraft()]);
+  }
+
+  function updateOptionName(id: string, name: string) {
+    setProductOptions((current) => current.map((option) => (option.id === id ? { ...option, name } : option)));
+  }
+
+  function updateOptionInput(id: string, input: string) {
+    setProductOptions((current) => current.map((option) => (option.id === id ? { ...option, input } : option)));
+  }
+
+  function addOptionValue(id: string) {
+    setProductOptions((current) => current.map((option) => {
+      if (option.id !== id) return option;
+      const value = option.input.trim();
+      if (!value || option.values.some((item) => item.toLowerCase() === value.toLowerCase())) return { ...option, input: "" };
+      return { ...option, values: [...option.values, value], input: "" };
+    }));
+  }
+
+  function removeOptionValue(id: string, value: string) {
+    setProductOptions((current) => current.map((option) => (option.id === id ? { ...option, values: option.values.filter((item) => item !== value) } : option)));
+  }
+
+  function removeOption(id: string) {
+    setProductOptions((current) => (current.length > 1 ? current.filter((option) => option.id !== id) : [optionDraft()]));
+  }
+
+  function generateVariantsFromOptions() {
+    const rows = cartesianOptions(productOptions);
+    if (!rows.length) {
+      setProductVariants((current) => (current.length ? current : [variantDraft({ sku: productSku }, productSku)]));
+      return;
+    }
+    setProductVariants(rows.map((options, index) => {
+      const variantName = Object.values(options).join(" / ");
+      const existing = productVariants.find((variant) => variant.variantName.toLowerCase() === variantName.toLowerCase());
+      return variantDraft({ ...existing, variantName, options, sku: existing?.sku || (productSku ? `${productSku}-${index + 1}` : ""), price: existing?.price ?? productVariants[0]?.price ?? 0 }, productSku);
+    }));
   }
 
   function addVariant() {
@@ -596,7 +673,37 @@ export function CatalogManagerClient() {
                       <section className="rounded-lg border border-slate-200 p-4">
                         <h3 className="font-semibold text-slate-950">Options</h3>
                         <p className="mt-1 text-sm text-slate-500">Examples: Size, Color, Material. Values become variant rows.</p>
-                        <button type="button" onClick={addVariant} className="mt-4 h-10 w-full rounded-md border border-slate-200 text-sm font-semibold text-slate-700">Add Custom Variant</button>
+                        <div className="mt-4 space-y-3">
+                          {productOptions.map((option) => (
+                            <div key={option.id} className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                              <div className="grid gap-3 md:grid-cols-[180px_1fr_auto]">
+                                <input value={option.name} onChange={(event) => updateOptionName(option.id, event.target.value)} className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm" placeholder="size" />
+                                <div className="flex min-h-10 flex-wrap items-center gap-2 rounded-md border border-slate-300 bg-white px-2">
+                                  {option.values.map((value) => (
+                                    <button key={value} type="button" onClick={() => removeOptionValue(option.id, value)} className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700">
+                                      {value} x
+                                    </button>
+                                  ))}
+                                  <input
+                                    value={option.input}
+                                    onChange={(event) => updateOptionInput(option.id, event.target.value)}
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter") {
+                                        event.preventDefault();
+                                        addOptionValue(option.id);
+                                      }
+                                    }}
+                                    className="h-8 min-w-28 flex-1 bg-transparent text-sm outline-none"
+                                    placeholder="Add value..."
+                                  />
+                                </div>
+                                <button type="button" onClick={() => removeOption(option.id)} className="h-10 rounded-md border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-600">Remove</button>
+                              </div>
+                              <button type="button" onClick={() => addOptionValue(option.id)} className="mt-3 h-10 w-full rounded-md border border-slate-200 bg-white text-sm font-semibold text-slate-500">Add Value</button>
+                            </div>
+                          ))}
+                        </div>
+                        <button type="button" onClick={addOption} className="mt-4 h-10 w-full rounded-md border border-slate-200 text-sm font-semibold text-slate-700">Add Option</button>
                       </section>
                       <section className="rounded-lg border border-slate-200 p-4">
                         <div className="flex items-center justify-between gap-3">
@@ -604,7 +711,7 @@ export function CatalogManagerClient() {
                             <h3 className="font-semibold text-slate-950">Variant Matrix</h3>
                             <p className="mt-1 text-sm text-slate-500">Tune SKU, stock, prices, status, and image per variant.</p>
                           </div>
-                          <button type="button" onClick={addVariant} className="rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">Generate Variants</button>
+                          <button type="button" onClick={generateVariantsFromOptions} className="rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">Generate Variants</button>
                         </div>
                         <div className="mt-4 space-y-4">
                           {productVariants.map((variant) => (
@@ -613,6 +720,13 @@ export function CatalogManagerClient() {
                                 <label className="block space-y-1 text-sm font-medium text-slate-700">
                                   <span>Variant Name</span>
                                   <input value={variant.variantName} onChange={(event) => updateVariant(variant.id, "variantName", event.target.value)} className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm" placeholder="Default" />
+                                  {Object.keys(variant.options || {}).length ? (
+                                    <span className="mt-2 flex flex-wrap gap-1">
+                                      {Object.entries(variant.options || {}).map(([name, value]) => (
+                                        <span key={`${name}-${value}`} className="rounded bg-slate-100 px-2 py-1 text-[11px] font-semibold uppercase text-slate-600">{name}: {value}</span>
+                                      ))}
+                                    </span>
+                                  ) : null}
                                 </label>
                                 <label className="block space-y-1 text-sm font-medium text-slate-700">
                                   <span>SKU</span>
@@ -655,14 +769,15 @@ export function CatalogManagerClient() {
                                   <input value={variant.price} onChange={(event) => updateVariant(variant.id, "price", Number(event.target.value || 0))} type="number" min="0" step="0.01" className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm" />
                                 </label>
                                 <label className="block space-y-1 text-sm font-medium text-slate-700">
-                                  <span>Low stock threshold</span>
-                                  <input value={variant.lowStockThreshold || 5} onChange={(event) => updateVariant(variant.id, "lowStockThreshold", Number(event.target.value || 0))} type="number" min="0" className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm" />
+                                  <span>BDT Compare At</span>
+                                  <input value={variant.compareAtPrice || ""} onChange={(event) => updateVariant(variant.id, "compareAtPrice", event.target.value ? Number(event.target.value) : null)} type="number" min="0" step="0.01" className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm" placeholder="Optional..." />
                                 </label>
                               </div>
                               <button type="button" onClick={() => removeVariant(variant.id)} disabled={productVariants.length === 1} className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-50">Remove Variant</button>
                             </div>
                           ))}
                         </div>
+                        <button type="button" onClick={addVariant} className="mt-5 h-10 w-full rounded-md border border-slate-200 text-sm font-semibold text-slate-700">Add Custom Variant</button>
                       </section>
                     </div>
                     <div className={productEditorTab === "Configurator" ? "space-y-4" : "hidden"}>

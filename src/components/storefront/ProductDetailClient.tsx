@@ -8,7 +8,7 @@ import Image from "next/image";
 import { useState } from "react";
 
 export function ProductDetailClient({ product }: { product: Product }) {
-  const activeVariants = product.variants?.filter((variant) => variant.status === "active") || [];
+  const activeVariants = product.productType === "variant" ? product.variants?.filter((variant) => variant.status === "active") || [] : [];
   const [selectedVariantId, setSelectedVariantId] = useState(activeVariants[0]?._id || activeVariants[0]?.sku || "");
   const [quantity, setQuantity] = useState(1);
   const selectedVariant = activeVariants.find((variant) => (variant._id || variant.sku) === selectedVariantId);
