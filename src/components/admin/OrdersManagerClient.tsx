@@ -457,8 +457,8 @@ export function OrdersManagerClient() {
                   <SummaryItem label="Refunded" value={money(selected.refundAmount)} />
                   <SummaryItem label="Remaining due" value={money(selected.dueAmount)} />
                 </div>
-                <PaymentForm title="Add payment" type="payment" methods={paymentMethods} saving={saving} onSubmit={savePayment} />
-                <PaymentForm title={`Issue refund - max ${money(refundableAmount)}`} type="refund" methods={paymentMethods} saving={saving} onSubmit={savePayment} />
+                <PaymentForm title="Add payment" type="payment" methods={paymentMethods} saving={saving} defaultAmount={selected.dueAmount || selected.grandTotal} onSubmit={savePayment} />
+                <PaymentForm title={`Issue refund - max ${money(refundableAmount)}`} type="refund" methods={paymentMethods} saving={saving} defaultAmount={refundableAmount} onSubmit={savePayment} />
                 <HistoryList rows={paymentRows(selected)} />
               </div>
             ) : null}
@@ -525,13 +525,13 @@ function Input({ label: title, name, defaultValue, type = "text" }: { label: str
   return <label className="block space-y-2 text-sm font-medium text-slate-700"><span>{title}</span><input name={name} type={type} defaultValue={defaultValue} className="h-10 w-full rounded-md border border-slate-300 px-3" /></label>;
 }
 
-function PaymentForm({ title, type, methods, saving, onSubmit }: { title: string; type: "payment" | "refund"; methods: string[]; saving: boolean; onSubmit: (event: FormEvent<HTMLFormElement>, type: "payment" | "refund") => void }) {
+function PaymentForm({ title, type, methods, saving, defaultAmount, onSubmit }: { title: string; type: "payment" | "refund"; methods: string[]; saving: boolean; defaultAmount?: number; onSubmit: (event: FormEvent<HTMLFormElement>, type: "payment" | "refund") => void }) {
   return (
     <form onSubmit={(event) => onSubmit(event, type)} className="space-y-3 rounded-md border border-slate-200 p-3">
       <h3 className="font-semibold text-slate-950">{title}</h3>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block space-y-2 text-sm font-medium text-slate-700"><span>Method</span><select name="method" className="h-10 w-full rounded-md border border-slate-300 px-3">{methods.map((method) => <option key={method} value={method}>{label(method)}</option>)}</select></label>
-        <Input name="amount" type="number" label={type === "refund" ? "Refund amount" : "Amount received"} />
+        <Input name="amount" type="number" label={type === "refund" ? "Refund amount" : "Amount received"} defaultValue={defaultAmount || ""} />
         <Input name="transactionId" label="Transaction/reference ID" />
         <Input name="senderPhone" label="Sender phone" />
         <Input name="reference" label="Reference" />
