@@ -1,7 +1,9 @@
 "use client";
 
 import { getCart, saveCart } from "@/utils/guestStore";
+import { getProductImageUrl, shouldBypassImageOptimizer } from "@/utils/imageUrl";
 import { Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { GuestCartItem } from "@/utils/guestStore";
@@ -31,12 +33,19 @@ export function CartClient() {
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
       <section className="space-y-3">
         {items.length ? (
-          items.map((item) => (
+          items.map((item) => {
+            const image = getProductImageUrl(item);
+            return (
             <article key={item._id} className="flex flex-col justify-between gap-4 rounded-lg border border-slate-200 bg-white p-4 sm:flex-row sm:items-center">
-              <div>
-                <h2 className="font-semibold text-slate-950">{item.name}</h2>
-                <p className="mt-1 text-sm text-slate-600">{item.sku}</p>
-                <p className="mt-1 text-sm font-semibold text-slate-950">${(item.finalPrice || item.price).toFixed(2)}</p>
+              <div className="flex min-w-0 items-center gap-4">
+                <div className="relative size-20 shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
+                  <Image src={image} alt={item.name} fill sizes="80px" unoptimized={shouldBypassImageOptimizer(image)} className="object-cover" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="truncate font-semibold text-slate-950">{item.name}</h2>
+                  <p className="mt-1 text-sm text-slate-600">{item.sku}</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-950">${(item.finalPrice || item.price).toFixed(2)}</p>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={() => updateQuantity(item._id, item.quantity - 1)} className="grid size-9 place-items-center rounded-md border border-slate-200" aria-label="Decrease quantity">
@@ -51,7 +60,8 @@ export function CartClient() {
                 </button>
               </div>
             </article>
-          ))
+            );
+          })
         ) : (
           <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center">
             <p className="font-semibold text-slate-950">Your cart is empty</p>
