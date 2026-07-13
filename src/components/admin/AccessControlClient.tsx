@@ -1,8 +1,8 @@
 "use client";
 
-import { createRole, createUserInvite, getCurrentAdmin, getPermissionRegistry, getRoles, getUsers, resendUserInvite } from "@/services/apiClient";
+import { createRole, createUserInvite, getCurrentAdmin, getPermissionRegistry, getRoles, getUsers, resendUserInvite, updateRole } from "@/services/apiClient";
 import type { AdminUser, InviteResponse, Permission, Role } from "@/types/ecommerce";
-import { Copy, Plus, RefreshCcw, ShieldCheck, UserPlus } from "lucide-react";
+import { Copy, Pencil, Plus, RefreshCcw, ShieldCheck, UserPlus, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 function slugFromName(value: string) {
@@ -15,6 +15,7 @@ export function AccessControlClient() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
+  const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [roleName, setRoleName] = useState("");
   const [roleDescription, setRoleDescription] = useState("");
   const [userName, setUserName] = useState("");
@@ -37,7 +38,10 @@ export function AccessControlClient() {
   const hasPermission = (permission: string) => Boolean(currentUser?.role?.slug === "owner" || currentUser?.role?.permissions.includes(permission));
   const canViewStaff = hasPermission("staff.view");
   const canCreateStaff = hasPermission("staff.create");
+  const canViewRoles = hasPermission("roles.view");
   const canCreateRoles = hasPermission("roles.create");
+  const canUpdateRoles = hasPermission("roles.update");
+  const canManageRoles = canCreateRoles || canUpdateRoles;
 
   useEffect(() => {
     let ignore = false;
@@ -46,7 +50,7 @@ export function AccessControlClient() {
         const can = (permission: string) => Boolean(user.role?.slug === "owner" || user.role?.permissions.includes(permission));
         const [permissionData, roleData, userData] = await Promise.all([
           can("roles.view") ? getPermissionRegistry() : Promise.resolve([]),
-          can("roles.view") || can("staff.create") ? getRoles() : Promise.resolve([]),
+          can("roles.view") || can("staff.create") || can("roles.update") ? getRoles() : Promise.resolve([]),
           can("staff.view") ? getUsers() : Promise.resolve([]),
         ]);
         return { user, permissionData, roleData, userData };
@@ -75,25 +79,46 @@ export function AccessControlClient() {
     setSelectedPermissions((current) => (current.includes(permission) ? current.filter((item) => item !== permission) : [...current, permission]));
   }
 
-  async function handleCreateRole(event: FormEvent<HTMLFormElement>) {
+  function resetRoleForm() {
+    setEditingRole(null);
+    setRoleName("");
+    setRoleDescription("");
+    setSelectedPermissions([]);
+  }
+
+  function handleEditRole(role: Role) {
+    setError("");
+    setSuccess("");
+    setEditingRole(role);
+    setRoleName(role.name);
+    setRoleDescription(role.description || "");
+    setSelectedPermissions(role.permissions || []);
+  }
+
+  async function handleSaveRole(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSavingRole(true);
     setError("");
     setSuccess("");
     try {
-      const role = await createRole({
+      const payload = {
         name: roleName,
         slug: slugFromName(roleName),
         description: roleDescription,
         permissions: selectedPermissions,
-      });
-      setRoles((current) => [...current, role].sort((a, b) => a.name.localeCompare(b.name)));
-      setRoleName("");
-      setRoleDescription("");
-      setSelectedPermissions([]);
-      setSuccess("Role created");
+      };
+      if (editingRole) {
+        const role = await updateRole(editingRole._id, payload);
+        setRoles((current) => current.map((item) => (item._id === role._id ? role : item)).sort((a, b) => a.name.localeCompare(b.name)));
+        setSuccess("Role permissions updated");
+      } else {
+        const role = await createRole(payload);
+        setRoles((current) => [...current, role].sort((a, b) => a.name.localeCompare(b.name)));
+        setSuccess("Role created");
+      }
+      resetRoleForm();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Role could not be created");
+      setError(err instanceof Error ? err.message : "Role could not be saved");
     } finally {
       setSavingRole(false);
     }
@@ -160,8 +185,8 @@ export function AccessControlClient() {
           </div>
         </section>
       ) : null}
-      {canCreateStaff || canCreateRoles ? (
-        <div className={`grid gap-5 ${canCreateStaff && canCreateRoles ? "xl:grid-cols-[380px_1fr]" : ""}`}>
+      {canCreateStaff || canManageRoles ? (
+        <div className={`grid gap-5 ${canCreateStaff && canManageRoles ? "xl:grid-cols-[380px_1fr]" : ""}`}>
           {canCreateStaff ? <section className="rounded-lg border border-slate-200 bg-white p-5">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950">
             <UserPlus size={19} />
@@ -192,20 +217,63 @@ export function AccessControlClient() {
             </button>
           </form>
         </section> : null}
-          {canCreateRoles ? <section className="rounded-lg border border-slate-200 bg-white p-5">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950">
-            <ShieldCheck size={19} />
-            Role builder
-          </h2>
-          <form onSubmit={handleCreateRole} className="mt-4 space-y-4">
+          {canManageRoles ? <section className="rounded-lg border border-slate-200 bg-white p-5">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950">
+                <ShieldCheck size={19} />
+                {editingRole ? "Edit role permissions" : "Permission role"}
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">{editingRole ? "Update access for an existing staff role." : "Create a role with the exact permissions your team needs."}</p>
+            </div>
+            {editingRole ? (
+              <button type="button" onClick={resetRoleForm} className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">
+                <X size={15} />
+                Cancel edit
+              </button>
+            ) : null}
+          </div>
+          {canViewRoles ? (
+            <div className="mt-5 rounded-md border border-slate-200">
+              <div className="border-b border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">Existing roles</div>
+              <div className="divide-y divide-slate-200">
+                {roles.map((role) => {
+                  const isOwnerRole = role.slug === "owner";
+                  const isActiveEdit = editingRole?._id === role._id;
+                  return (
+                    <div key={role._id} className={`grid gap-3 px-3 py-3 md:grid-cols-[1fr_auto] md:items-center ${isActiveEdit ? "bg-teal-50" : "bg-white"}`}>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-slate-950">{role.name}</p>
+                          {role.isSystemRole ? <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">System</span> : null}
+                          {isOwnerRole ? <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">Protected</span> : null}
+                        </div>
+                        <p className="mt-1 text-sm text-slate-500">{role.description || "No description"} · {role.permissions.length} permissions</p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={!canUpdateRoles || isOwnerRole}
+                        onClick={() => handleEditRole(role)}
+                        className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+                      >
+                        <Pencil size={15} />
+                        {isActiveEdit ? "Editing" : "Edit"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+          {(canCreateRoles || editingRole) ? <form onSubmit={handleSaveRole} className="mt-5 space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
               <label className="block space-y-1 text-sm font-medium text-slate-700">
                 <span>Role name</span>
-                <input value={roleName} onChange={(event) => setRoleName(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 px-3" required />
+                <input value={roleName} onChange={(event) => setRoleName(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 px-3" required disabled={Boolean(editingRole && !canUpdateRoles)} />
               </label>
               <label className="block space-y-1 text-sm font-medium text-slate-700">
                 <span>Description</span>
-                <input value={roleDescription} onChange={(event) => setRoleDescription(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 px-3" />
+                <input value={roleDescription} onChange={(event) => setRoleDescription(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 px-3" disabled={Boolean(editingRole && !canUpdateRoles)} />
               </label>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
@@ -215,7 +283,7 @@ export function AccessControlClient() {
                   <div className="mt-3 grid gap-2">
                     {items.map((permission) => (
                       <label key={permission.key} className="flex items-center gap-2 text-sm text-slate-700">
-                        <input type="checkbox" checked={selectedPermissions.includes(permission.key)} onChange={() => togglePermission(permission.key)} className="size-4 rounded border-slate-300 text-teal-600" />
+                        <input type="checkbox" checked={selectedPermissions.includes(permission.key)} onChange={() => togglePermission(permission.key)} disabled={Boolean(editingRole && !canUpdateRoles)} className="size-4 rounded border-slate-300 text-teal-600 disabled:cursor-not-allowed" />
                         {permission.key}
                       </label>
                     ))}
@@ -225,9 +293,9 @@ export function AccessControlClient() {
             </div>
             <button disabled={savingRole} className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-400">
               <Plus size={16} />
-              {savingRole ? "Saving..." : "Create permission role"}
+              {savingRole ? "Saving..." : editingRole ? "Save role changes" : "Create permission role"}
             </button>
-          </form>
+          </form> : null}
         </section> : null}
       </div>
       ) : null}
