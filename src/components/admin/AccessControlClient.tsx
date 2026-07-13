@@ -1,6 +1,6 @@
 "use client";
 
-import { createRole, createUserInvite, deleteRole, getCurrentAdmin, getPermissionRegistry, getRoles, getUsers, resendUserInvite, updateRole } from "@/services/apiClient";
+import { createRole, createUserInvite, deleteRole, getAssignableRoles, getCurrentAdmin, getPermissionRegistry, getRoles, getUsers, resendUserInvite, updateRole } from "@/services/apiClient";
 import type { AdminUser, InviteResponse, Permission, Role } from "@/types/ecommerce";
 import { Copy, Pencil, Plus, RefreshCcw, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
@@ -38,20 +38,22 @@ export function AccessControlClient() {
   const hasPermission = (permission: string) => Boolean(currentUser?.role?.slug === "owner" || currentUser?.role?.permissions.includes(permission));
   const canViewStaff = hasPermission("staff.view");
   const canCreateStaff = hasPermission("staff.create");
-  const canViewRoles = hasPermission("roles.view");
-  const canCreateRoles = hasPermission("roles.create");
-  const canUpdateRoles = hasPermission("roles.update");
   const isOwner = currentUser?.role?.slug === "owner";
-  const canManageRoles = canCreateRoles || canUpdateRoles;
+  const canViewRoles = Boolean(isOwner);
+  const canCreateRoles = Boolean(isOwner);
+  const canUpdateRoles = Boolean(isOwner);
+  const canManageRoles = Boolean(isOwner);
+  const staffRoles = useMemo(() => roles.filter((role) => role.slug !== "owner"), [roles]);
 
   useEffect(() => {
     let ignore = false;
     getCurrentAdmin()
       .then(async (user) => {
         const can = (permission: string) => Boolean(user.role?.slug === "owner" || user.role?.permissions.includes(permission));
+        const owner = user.role?.slug === "owner";
         const [permissionData, roleData, userData] = await Promise.all([
-          can("roles.view") ? getPermissionRegistry() : Promise.resolve([]),
-          can("roles.view") || can("staff.create") || can("roles.update") ? getRoles() : Promise.resolve([]),
+          owner ? getPermissionRegistry() : Promise.resolve([]),
+          owner ? getRoles() : can("staff.create") ? getAssignableRoles() : Promise.resolve([]),
           can("staff.view") ? getUsers() : Promise.resolve([]),
         ]);
         return { user, permissionData, roleData, userData };
@@ -62,7 +64,7 @@ export function AccessControlClient() {
         setPermissions(permissionData);
         setRoles(roleData);
         setUsers(userData);
-        setUserRoleId(roleData.find((role) => role.slug !== "owner")?._id || roleData[0]?._id || "");
+        setUserRoleId(roleData.find((role) => role.slug !== "owner")?._id || "");
       })
       .catch((err) => {
         if (!ignore) setError(err instanceof Error ? err.message : "Team and permission data could not load");
@@ -221,14 +223,15 @@ export function AccessControlClient() {
             <label className="block space-y-1 text-sm font-medium text-slate-700">
               <span>Role</span>
               <select value={userRoleId} onChange={(event) => setUserRoleId(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 px-3" required>
-                {roles.map((role) => (
+                {staffRoles.map((role) => (
                   <option key={role._id} value={role._id}>
                     {role.name}
                   </option>
                 ))}
               </select>
+              {!userRoleId ? <span className="text-xs font-normal text-amber-700">No assignable staff role is available.</span> : null}
             </label>
-            <button disabled={savingUser} className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-400">
+            <button disabled={savingUser || !userRoleId} className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-400">
               <Plus size={16} />
               {savingUser ? "Creating..." : "Create staff invite"}
             </button>

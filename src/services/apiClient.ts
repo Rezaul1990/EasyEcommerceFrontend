@@ -179,6 +179,10 @@ export async function getRoles() {
   return adminRequest<Role[]>("/admin/roles");
 }
 
+export async function getAssignableRoles() {
+  return adminRequest<Role[]>("/admin/staff/roles");
+}
+
 export async function createRole(payload: { name: string; slug: string; description: string; permissions: string[] }) {
   return adminRequest<Role>("/admin/roles", { method: "POST", body: JSON.stringify(payload) });
 }
