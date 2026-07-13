@@ -1,12 +1,14 @@
+import { contentValue } from "@/config/contentFields";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { ProductGrid } from "@/components/storefront/ProductGrid";
-import { getCategories, getProducts } from "@/services/apiClient";
+import { getCategories, getProducts, getPublicPageContent } from "@/services/apiClient";
 import { ArrowRight, BadgeCheck, PackageSearch, ShieldCheck, Truck } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
 export default async function Home() {
-  const [products, categories] = await Promise.all([getProducts(), getCategories()]);
+  const [products, categories, pageContent] = await Promise.all([getProducts(), getCategories(), getPublicPageContent("home")]);
+  const content = pageContent.content;
   const featuredProducts = products.filter((product) => product.isFeatured).slice(0, 3);
 
   return (
@@ -16,20 +18,20 @@ export default async function Home() {
         <section className="bg-white">
           <div className="mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8 lg:py-14">
             <div className="flex flex-col justify-center">
-              <p className="text-sm font-semibold uppercase tracking-wide text-teal-700">Modern ecommerce operations</p>
+              <p className="text-sm font-semibold uppercase tracking-wide text-teal-700">{contentValue(content, "eyebrow", "Modern ecommerce operations")}</p>
               <h1 className="mt-3 max-w-2xl text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-                EasyEcommerce
+                {contentValue(content, "title", "EasyEcommerce")}
               </h1>
               <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600">
-                A complete storefront and admin foundation for selling products, managing catalog data, processing orders, and controlling staff access.
+                {contentValue(content, "subtitle", "A complete storefront and admin foundation for selling products, managing catalog data, processing orders, and controlling staff access.")}
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link href="/products" className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-5 py-3 text-sm font-semibold text-white">
-                  Browse products
+                  {contentValue(content, "primaryButton", "Browse products")}
                   <ArrowRight size={17} />
                 </Link>
                 <Link href="/admin" className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-800">
-                  Open admin
+                  {contentValue(content, "secondaryButton", "Open admin")}
                 </Link>
               </div>
             </div>
@@ -70,11 +72,11 @@ export default async function Home() {
         <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
           <div className="mb-6 flex items-end justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-teal-700">Featured catalog</p>
-              <h2 className="mt-2 text-2xl font-semibold text-slate-950">Products ready to sell</h2>
+              <p className="text-sm font-semibold uppercase tracking-wide text-teal-700">{contentValue(content, "featuredEyebrow", "Featured catalog")}</p>
+              <h2 className="mt-2 text-2xl font-semibold text-slate-950">{contentValue(content, "featuredTitle", "Products ready to sell")}</h2>
             </div>
             <Link href="/products" className="hidden text-sm font-semibold text-teal-700 sm:inline">
-              View all
+              {contentValue(content, "featuredLink", "View all")}
             </Link>
           </div>
           <ProductGrid products={featuredProducts.length ? featuredProducts : products.slice(0, 3)} />

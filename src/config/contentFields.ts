@@ -14,6 +14,21 @@ export type EditablePageDefinition = {
 
 export const editablePageDefinitions: EditablePageDefinition[] = [
   {
+    pageKey: "home",
+    label: "Home",
+    path: "/",
+    fields: [
+      { key: "eyebrow", label: "Hero eyebrow", fallback: "Modern ecommerce operations" },
+      { key: "title", label: "Hero title", fallback: "EasyEcommerce" },
+      { key: "subtitle", label: "Hero subtitle", fallback: "A complete storefront and admin foundation for selling products, managing catalog data, processing orders, and controlling staff access.", multiline: true },
+      { key: "primaryButton", label: "Primary button", fallback: "Browse products" },
+      { key: "secondaryButton", label: "Secondary button", fallback: "Open admin" },
+      { key: "featuredEyebrow", label: "Featured eyebrow", fallback: "Featured catalog" },
+      { key: "featuredTitle", label: "Featured title", fallback: "Products ready to sell" },
+      { key: "featuredLink", label: "Featured link", fallback: "View all" },
+    ],
+  },
+  {
     pageKey: "products",
     label: "Products",
     path: "/products",
