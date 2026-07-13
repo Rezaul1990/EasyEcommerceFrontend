@@ -443,7 +443,7 @@ export async function downloadInventoryDemo(type: "low_stock" | "out_of_stock") 
 
 export async function createPublicOrder(payload: {
   customer: { name: string; email?: string; phone: string; address: string; city: string; area: string; postalCode?: string };
-  items: Array<{ productId: string; quantity: number }>;
+  items: Array<{ productId: string; variantId?: string; variantSku?: string; quantity: number }>;
   paymentMethod: "cod" | "manual" | "bkash" | "nagad" | "card";
   notes?: string;
 }) {

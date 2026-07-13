@@ -2,20 +2,46 @@
 
 import type { Product } from "@/types/ecommerce";
 import { getProductImageUrl, resolveImageUrl, shouldBypassImageOptimizer } from "@/utils/imageUrl";
-import { addToCart, toggleWishlist } from "@/utils/guestStore";
+import { addToCart, getVariantLabel, toggleWishlist } from "@/utils/guestStore";
 import { Heart, ShoppingCart } from "lucide-react";
 import Image from "next/image";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 export function ProductDetailClient({ product }: { product: Product }) {
-  const activeVariants = product.productType === "variant" ? product.variants?.filter((variant) => variant.status === "active") || [] : [];
+  const activeVariants = useMemo(() => (product.productType === "variant" ? product.variants?.filter((variant) => variant.status === "active") || [] : []), [product.productType, product.variants]);
+  const optionGroups = useMemo(() => {
+    const groups = new Map<string, string[]>();
+    activeVariants.forEach((variant) => {
+      Object.entries(variant.options || {}).forEach(([name, value]) => {
+        if (!value) return;
+        const values = groups.get(name) || [];
+        if (!values.some((item) => item.toLowerCase() === value.toLowerCase())) values.push(value);
+        groups.set(name, values);
+      });
+    });
+    return Array.from(groups.entries()).map(([name, values]) => ({ name, values }));
+  }, [activeVariants]);
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(activeVariants[0]?.options || {});
   const [selectedVariantId, setSelectedVariantId] = useState(activeVariants[0]?._id || activeVariants[0]?.sku || "");
   const [quantity, setQuantity] = useState(1);
-  const selectedVariant = activeVariants.find((variant) => (variant._id || variant.sku) === selectedVariantId);
+  const selectedVariant = activeVariants.find((variant) => {
+    if (optionGroups.length) return optionGroups.every((group) => variant.options?.[group.name] === selectedOptions[group.name]);
+    return (variant._id || variant.sku) === selectedVariantId;
+  }) || activeVariants.find((variant) => (variant._id || variant.sku) === selectedVariantId);
   const image = selectedVariant?.image ? resolveImageUrl(selectedVariant.image) : getProductImageUrl(product);
   const price = selectedVariant?.finalPrice || selectedVariant?.price || product.finalPrice || product.price;
+  const compareAtPrice = selectedVariant?.compareAtPrice || product.compareAtPrice;
   const availableStock = selectedVariant ? Math.max((selectedVariant.stock || 0) - (selectedVariant.reservedStock || 0), 0) : product.stockQuantity ?? product.stock ?? 0;
   const sku = selectedVariant?.sku || product.sku;
+  const selectedLabel = getVariantLabel(selectedVariant);
+
+  function chooseOption(name: string, value: string) {
+    const nextOptions = { ...selectedOptions, [name]: value };
+    setSelectedOptions(nextOptions);
+    const nextVariant = activeVariants.find((variant) => optionGroups.every((group) => variant.options?.[group.name] === nextOptions[group.name]));
+    if (nextVariant) setSelectedVariantId(nextVariant._id || nextVariant.sku);
+    setQuantity(1);
+  }
 
   return (
     <main className="mx-auto grid max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-2 lg:px-8">
@@ -34,9 +60,30 @@ export function ProductDetailClient({ product }: { product: Product }) {
         </div>
         <div className="mt-6 flex items-center gap-4">
           <span className="text-3xl font-semibold text-slate-950">${price.toFixed(2)}</span>
-          {product.compareAtPrice ? <span className="text-lg text-slate-400 line-through">${product.compareAtPrice.toFixed(2)}</span> : null}
+          {compareAtPrice ? <span className="text-lg text-slate-400 line-through">${compareAtPrice.toFixed(2)}</span> : null}
         </div>
-        {activeVariants.length ? (
+        {optionGroups.length ? (
+          <div className="mt-6 rounded-lg border border-slate-200 bg-white p-4">
+            <div className="space-y-4">
+              {optionGroups.map((group) => (
+                <div key={group.name}>
+                  <p className="text-sm font-semibold capitalize text-slate-950">{group.name}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {group.values.map((value) => (
+                      <button key={`${group.name}-${value}`} type="button" onClick={() => chooseOption(group.name, value)} className={`rounded-md border px-3 py-2 text-sm font-semibold ${selectedOptions[group.name] === value ? "border-teal-600 bg-teal-50 text-teal-700" : "border-slate-200 text-slate-700"}`}>
+                        {value}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-sm">
+                <span className="font-semibold text-slate-950">Selected: {selectedLabel}</span>
+                <span className="text-slate-500">{availableStock} available</span>
+              </div>
+            </div>
+          </div>
+        ) : activeVariants.length ? (
           <div className="mt-6">
             <p className="text-sm font-semibold text-slate-950">Choose option</p>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -57,7 +104,7 @@ export function ProductDetailClient({ product }: { product: Product }) {
           <button onClick={() => setQuantity((value) => Math.min(availableStock || 999, value + 1))} className="grid size-10 place-items-center rounded-md border border-slate-200">+</button>
         </div>
         <div className="mt-8 flex flex-wrap gap-3">
-          <button disabled={!availableStock} onClick={() => addToCart(product, quantity)} className="inline-flex items-center justify-center gap-2 rounded-md bg-teal-600 px-5 py-3 text-sm font-semibold text-white disabled:bg-slate-400">
+          <button disabled={!availableStock || (activeVariants.length > 0 && !selectedVariant)} onClick={() => addToCart(product, quantity, selectedVariant)} className="inline-flex items-center justify-center gap-2 rounded-md bg-teal-600 px-5 py-3 text-sm font-semibold text-white disabled:bg-slate-400">
             <ShoppingCart size={18} />
             Add to cart
           </button>

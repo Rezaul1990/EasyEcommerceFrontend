@@ -2,7 +2,7 @@
 
 import { createPublicOrder } from "@/services/apiClient";
 import { bdPostalCodes } from "@/constants/bdPostalCodes";
-import { clearCart, getCart } from "@/utils/guestStore";
+import { clearCart, getCart, getCartItemPrice, getVariantLabel } from "@/utils/guestStore";
 import thanaData from "@bangladeshi/bangladesh-address/build/src/json/bd-thana.json";
 import upazilaData from "@bangladeshi/bangladesh-address/build/src/json/bd-upazila.json";
 import Link from "next/link";
@@ -44,7 +44,7 @@ export function CheckoutClient() {
   const [postalCode, setPostalCode] = useState("");
   const [address, setAddress] = useState("");
   const [autoAddressLine, setAutoAddressLine] = useState("");
-  const subtotal = useMemo(() => items.reduce((sum, item) => sum + (item.finalPrice || item.price) * item.quantity, 0), [items]);
+  const subtotal = useMemo(() => items.reduce((sum, item) => sum + getCartItemPrice(item) * item.quantity, 0), [items]);
   const districts = useMemo(() => Array.from(new Set((upazilaData as UpazilaRow[]).map((item) => item.district))).sort((a, b) => a.localeCompare(b)), []);
   const areas = useMemo(() => {
     if (!selectedDistrict) return [];
@@ -120,7 +120,7 @@ export function CheckoutClient() {
           area: String(form.get("area") || ""),
           postalCode: postalCode,
         },
-        items: items.map((item) => ({ productId: item._id, quantity: item.quantity })),
+        items: items.map((item) => ({ productId: item._id, variantId: item.selectedVariant?._id, variantSku: item.selectedVariant?.sku, quantity: item.quantity })),
         paymentMethod: String(form.get("paymentMethod") || "cod") as "cod" | "manual" | "bkash" | "nagad" | "card",
         notes: String(form.get("notes") || ""),
       });
@@ -174,7 +174,19 @@ export function CheckoutClient() {
       <aside className="h-fit rounded-lg border border-slate-200 bg-white p-5">
         <h2 className="font-semibold text-slate-950">Order summary</h2>
         <div className="mt-4 space-y-3 text-sm">
-          {items.map((item) => <div key={item._id} className="flex justify-between gap-3"><span className="text-slate-600">{item.name} x {item.quantity}</span><span className="font-semibold">${((item.finalPrice || item.price) * item.quantity).toFixed(2)}</span></div>)}
+          {items.map((item) => {
+            const variantLabel = getVariantLabel(item.selectedVariant);
+            const price = getCartItemPrice(item);
+            return (
+              <div key={item.cartLineId} className="flex justify-between gap-3">
+                <span className="text-slate-600">
+                  {item.name} x {item.quantity}
+                  {variantLabel ? <span className="block text-xs font-semibold text-teal-700">{variantLabel}</span> : null}
+                </span>
+                <span className="font-semibold">${(price * item.quantity).toFixed(2)}</span>
+              </div>
+            );
+          })}
         </div>
         <div className="mt-4 flex justify-between border-t border-slate-200 pt-3 font-semibold"><span>Total</span><span>${subtotal.toFixed(2)}</span></div>
       </aside>

@@ -1,7 +1,7 @@
 "use client";
 
-import { getCart, saveCart } from "@/utils/guestStore";
-import { getProductImageUrl, shouldBypassImageOptimizer } from "@/utils/imageUrl";
+import { getCart, getCartItemPrice, getCartItemStock, getVariantLabel, saveCart } from "@/utils/guestStore";
+import { getProductImageUrl, resolveImageUrl, shouldBypassImageOptimizer } from "@/utils/imageUrl";
 import { Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -15,16 +15,16 @@ export function CartClient() {
     queueMicrotask(() => setItems(getCart()));
   }, []);
 
-  const subtotal = useMemo(() => items.reduce((sum, item) => sum + (item.finalPrice || item.price) * item.quantity, 0), [items]);
+  const subtotal = useMemo(() => items.reduce((sum, item) => sum + getCartItemPrice(item) * item.quantity, 0), [items]);
 
-  function updateQuantity(id: string, quantity: number) {
-    const next = items.map((item) => (item._id === id ? { ...item, quantity: Math.max(1, Math.min(quantity, item.stockQuantity ?? item.stock ?? 999)) } : item));
+  function updateQuantity(cartLineId: string, quantity: number) {
+    const next = items.map((item) => (item.cartLineId === cartLineId ? { ...item, quantity: Math.max(1, Math.min(quantity, getCartItemStock(item))) } : item));
     setItems(next);
     saveCart(next);
   }
 
-  function removeItem(id: string) {
-    const next = items.filter((item) => item._id !== id);
+  function removeItem(cartLineId: string) {
+    const next = items.filter((item) => item.cartLineId !== cartLineId);
     setItems(next);
     saveCart(next);
   }
@@ -34,28 +34,31 @@ export function CartClient() {
       <section className="space-y-3">
         {items.length ? (
           items.map((item) => {
-            const image = getProductImageUrl(item);
+            const image = item.selectedVariant?.image ? resolveImageUrl(item.selectedVariant.image) : getProductImageUrl(item);
+            const price = getCartItemPrice(item);
+            const variantLabel = getVariantLabel(item.selectedVariant);
             return (
-            <article key={item._id} className="flex flex-col justify-between gap-4 rounded-lg border border-slate-200 bg-white p-4 sm:flex-row sm:items-center">
+            <article key={item.cartLineId} className="flex flex-col justify-between gap-4 rounded-lg border border-slate-200 bg-white p-4 sm:flex-row sm:items-center">
               <div className="flex min-w-0 items-center gap-4">
                 <div className="relative size-20 shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
                   <Image src={image} alt={item.name} fill sizes="80px" unoptimized={shouldBypassImageOptimizer(image)} className="object-cover" />
                 </div>
                 <div className="min-w-0">
                   <h2 className="truncate font-semibold text-slate-950">{item.name}</h2>
-                  <p className="mt-1 text-sm text-slate-600">{item.sku}</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-950">${(item.finalPrice || item.price).toFixed(2)}</p>
+                  {variantLabel ? <p className="mt-1 text-sm font-semibold text-teal-700">{variantLabel}</p> : null}
+                  <p className="mt-1 text-sm text-slate-600">SKU: {item.selectedVariant?.sku || item.sku}</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-950">${price.toFixed(2)}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => updateQuantity(item._id, item.quantity - 1)} className="grid size-9 place-items-center rounded-md border border-slate-200" aria-label="Decrease quantity">
+                <button onClick={() => updateQuantity(item.cartLineId, item.quantity - 1)} className="grid size-9 place-items-center rounded-md border border-slate-200" aria-label="Decrease quantity">
                   <Minus size={16} />
                 </button>
                 <span className="w-8 text-center text-sm font-semibold">{item.quantity}</span>
-                <button onClick={() => updateQuantity(item._id, item.quantity + 1)} className="grid size-9 place-items-center rounded-md border border-slate-200" aria-label="Increase quantity">
+                <button onClick={() => updateQuantity(item.cartLineId, item.quantity + 1)} className="grid size-9 place-items-center rounded-md border border-slate-200" aria-label="Increase quantity">
                   <Plus size={16} />
                 </button>
-                <button onClick={() => removeItem(item._id)} className="grid size-9 place-items-center rounded-md border border-slate-200 text-rose-600" aria-label="Remove item">
+                <button onClick={() => removeItem(item.cartLineId)} className="grid size-9 place-items-center rounded-md border border-slate-200 text-rose-600" aria-label="Remove item">
                   <Trash2 size={16} />
                 </button>
               </div>

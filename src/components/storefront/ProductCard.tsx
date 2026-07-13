@@ -37,9 +37,15 @@ export function ProductCard({ product }: { product: Product }) {
             <button onClick={() => toggleWishlist(product)} className="grid size-10 place-items-center rounded-md border border-slate-200 text-slate-600" aria-label={`Add ${product.name} to wishlist`}>
               <Heart size={18} />
             </button>
-            <button onClick={() => addToCart(product)} className="grid size-10 place-items-center rounded-md bg-teal-600 text-white" aria-label={`Add ${product.name} to cart`}>
-              <ShoppingCart size={18} />
-            </button>
+            {product.productType === "variant" && product.variants?.length ? (
+              <Link href={`/products/${product.slug}`} className="grid size-10 place-items-center rounded-md bg-teal-600 text-white" aria-label={`Choose options for ${product.name}`}>
+                <ShoppingCart size={18} />
+              </Link>
+            ) : (
+              <button onClick={() => addToCart(product)} className="grid size-10 place-items-center rounded-md bg-teal-600 text-white" aria-label={`Add ${product.name} to cart`}>
+                <ShoppingCart size={18} />
+              </button>
+            )}
           </div>
         </div>
       </div>

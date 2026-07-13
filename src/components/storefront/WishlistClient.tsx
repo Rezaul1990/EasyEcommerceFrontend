@@ -28,7 +28,11 @@ export function WishlistClient() {
               <p className="mt-1 text-sm text-slate-600">{item.sku}</p>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => addToCart(item)} className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-3 py-2 text-sm font-semibold text-white"><ShoppingCart size={16} />Cart</button>
+              {item.productType === "variant" && item.variants?.length ? (
+                <Link href={`/products/${item.slug}`} className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-3 py-2 text-sm font-semibold text-white"><ShoppingCart size={16} />Choose</Link>
+              ) : (
+                <button onClick={() => addToCart(item)} className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-3 py-2 text-sm font-semibold text-white"><ShoppingCart size={16} />Cart</button>
+              )}
               <button onClick={() => remove(item)} className="inline-flex items-center gap-2 rounded-md border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-600"><Trash2 size={16} />Remove</button>
             </div>
           </article>
