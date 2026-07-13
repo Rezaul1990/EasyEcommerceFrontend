@@ -98,10 +98,15 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 function formatApiError<T>(payload: ApiResponse<T>, fallback: string) {
-  const detailMessage = payload.details?.map((detail) => {
-    const path = detail.path ? `${detail.path}: ` : "";
-    return `${path}${detail.message || ""}`.trim();
-  }).filter(Boolean).join("; ");
+  const details = payload.details;
+  const detailMessage = Array.isArray(details)
+    ? details.map((detail) => {
+      const path = detail.path ? `${detail.path}: ` : "";
+      return `${path}${detail.message || ""}`.trim();
+    }).filter(Boolean).join("; ")
+    : details && typeof details === "object" && "providerMessage" in details
+      ? String(details.providerMessage || "")
+      : "";
   return detailMessage ? `${payload.message || fallback}: ${detailMessage}` : payload.message || fallback;
 }
 
