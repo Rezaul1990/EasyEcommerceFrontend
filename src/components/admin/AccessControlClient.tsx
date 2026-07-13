@@ -9,6 +9,16 @@ function slugFromName(value: string) {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
+function canNonOwnerAssignRole(role: Role, currentUser: AdminUser | null) {
+  if (!currentUser?.role) return false;
+  if (role.slug === "owner") return false;
+  if (role._id === currentUser.role.id) return false;
+  const delegatedStaffPermissions = new Set(["staff.create", "staff.update", "staff.edit", "staff.delete", "staff.manage"]);
+  const canManageAccess = role.permissions.some((permission) => permission.startsWith("roles.") || delegatedStaffPermissions.has(permission));
+  if (canManageAccess) return false;
+  return role.permissions.every((permission) => currentUser.role?.permissions.includes(permission));
+}
+
 export function AccessControlClient() {
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -43,7 +53,7 @@ export function AccessControlClient() {
   const canCreateRoles = Boolean(isOwner);
   const canUpdateRoles = Boolean(isOwner);
   const canManageRoles = Boolean(isOwner);
-  const staffRoles = useMemo(() => roles.filter((role) => role.slug !== "owner"), [roles]);
+  const staffRoles = useMemo(() => (isOwner ? roles.filter((role) => role.slug !== "owner") : roles.filter((role) => canNonOwnerAssignRole(role, currentUser))), [currentUser, isOwner, roles]);
 
   useEffect(() => {
     let ignore = false;
