@@ -1,13 +1,14 @@
 import { SiteHeader } from "@/components/layout/SiteHeader";
+import { CouponShowcase } from "@/components/storefront/CouponShowcase";
 import { ProductGrid } from "@/components/storefront/ProductGrid";
-import { getCategories, getProducts } from "@/services/apiClient";
+import { getActiveCoupons, getCategories, getProducts } from "@/services/apiClient";
 
 export const metadata = {
   title: "Products | EasyEcommerce",
 };
 
 export default async function ProductsPage() {
-  const [products, categories] = await Promise.all([getProducts(), getCategories()]);
+  const [products, categories, coupons] = await Promise.all([getProducts(), getCategories(), getActiveCoupons()]);
 
   return (
     <>
@@ -17,17 +18,11 @@ export default async function ProductsPage() {
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-teal-700">Shop</p>
             <h1 className="mt-2 text-3xl font-semibold text-slate-950">Products</h1>
-            <p className="mt-2 max-w-2xl text-slate-600">Browse the active catalog. The API client falls back to sample data until MongoDB is configured.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {categories.map((category) => (
-              <span key={category._id} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
-                {category.name}
-              </span>
-            ))}
+            <p className="mt-2 max-w-2xl text-slate-600">Browse the active catalog and use eligible coupons for instant checkout savings.</p>
           </div>
         </div>
-        <ProductGrid products={products} />
+        <CouponShowcase coupons={coupons} />
+        <ProductGrid products={products} categories={categories} />
       </main>
     </>
   );

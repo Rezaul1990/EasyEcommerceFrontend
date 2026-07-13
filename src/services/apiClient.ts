@@ -219,6 +219,14 @@ export async function getCategories(): Promise<Category[]> {
   }
 }
 
+export async function getActiveCoupons(): Promise<Coupon[]> {
+  try {
+    return await request<Coupon[]>("/coupons");
+  } catch {
+    return [];
+  }
+}
+
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   try {
     return await request<Product>(`/products/${slug}`);
