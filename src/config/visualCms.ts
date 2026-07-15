@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-export const visualCmsEditorEnabled = process.env.NEXT_PUBLIC_VISUAL_CMS_EDITOR_ENABLED === "true";
+export const visualCmsEditorEnabled = process.env.NEXT_PUBLIC_VISUAL_CMS_EDITOR_ENABLED !== "false";
 
 export const supportedVisualSectionTypes = ["hero", "featured-products", "content", "cta"] as const;
 
