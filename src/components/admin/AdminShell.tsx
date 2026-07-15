@@ -2,7 +2,7 @@
 
 import { clearAdminToken, getAdminSidebar, getCurrentAdmin } from "@/services/apiClient";
 import type { AdminUser, SidebarItem } from "@/types/ecommerce";
-import { BarChart3, Boxes, ClipboardList, FilePenLine, LayoutDashboard, LockKeyhole, LogOut, Menu, PackageSearch, Settings, ShieldCheck, TicketPercent, Users, X } from "lucide-react";
+import { BarChart3, Boxes, ClipboardList, FilePenLine, LayoutDashboard, LockKeyhole, LogOut, Menu, Monitor, PackageSearch, Settings, ShieldCheck, TicketPercent, Users, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
@@ -13,6 +13,7 @@ const navItems = [
   { href: "/admin/catalog", label: "Products", module: "products", icon: Boxes },
   { href: "/admin/orders", label: "Orders", module: "orders", icon: ClipboardList },
   { href: "/admin/coupons", label: "Coupons", module: "coupons", icon: TicketPercent },
+  ...(process.env.NEXT_PUBLIC_VISUAL_CMS_EDITOR_ENABLED === "true" ? [{ href: "/admin/visual-editor", label: "Visual Editor", module: "content", icon: Monitor }] : []),
   { href: "/admin/content", label: "Content Editor", module: "content", icon: FilePenLine },
   { href: "/admin/inventory", label: "Inventory", module: "inventory", icon: PackageSearch },
   { href: "/admin/reports", label: "Reports", module: "reports", icon: BarChart3 },
