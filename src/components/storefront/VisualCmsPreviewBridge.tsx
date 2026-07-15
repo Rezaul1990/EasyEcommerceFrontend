@@ -10,7 +10,7 @@ type VisualCmsPreviewBridgeProps = {
 function isPreviewMessage(value: unknown): value is VisualCmsPreviewMessage {
   if (!value || typeof value !== "object") return false;
   const event = (value as { event?: unknown }).event;
-  return event === "SECTION_CONTENT_UPDATED" || event === "SECTION_STYLE_UPDATED" || event === "SCROLL_TO_SECTION";
+  return event === "SECTION_CONTENT_UPDATED" || event === "SECTION_STYLE_UPDATED" || event === "SECTION_STRUCTURE_UPDATED" || event === "SCROLL_TO_SECTION";
 }
 
 function selectSection(sectionId: string) {
@@ -43,6 +43,37 @@ function updatePreviewStyles(message: VisualCmsPreviewMessage) {
       const button = node.closest<HTMLElement>("a,button");
       if (role === "button" && button) Object.assign(button.style, visualCmsFieldStyle(styles[sectionId], "button"));
     });
+  });
+}
+
+function updatePreviewStructure(message: VisualCmsPreviewMessage) {
+  const sections = [...(message.sections || [])].sort((a, b) => a.sortOrder - b.sortOrder);
+  const main = document.querySelector("main");
+  if (!main) return;
+
+  document.querySelectorAll<HTMLElement>("[data-visual-cms-draft-clone='true']").forEach((node) => node.remove());
+  document.querySelectorAll<HTMLElement>("[data-visual-cms-section-id]").forEach((node) => {
+    node.style.display = "none";
+  });
+
+  let anchor: Element | null = null;
+  sections.forEach((section) => {
+    const existing = document.querySelector<HTMLElement>(`[data-visual-cms-section-id="${section.id}"]`);
+    const source = document.querySelector<HTMLElement>(`[data-visual-cms-section-id="${section.sourceId}"]`);
+    const node = existing || source?.cloneNode(true);
+    if (!(node instanceof HTMLElement)) return;
+    if (!existing) {
+      node.dataset.visualCmsDraftClone = "true";
+      node.dataset.visualCmsSectionId = section.id;
+      node.querySelectorAll<HTMLElement>("[data-visual-cms-field-key]").forEach((fieldNode) => {
+        const key = fieldNode.dataset.visualCmsFieldKey || "";
+        fieldNode.dataset.visualCmsFieldKey = `${section.id}.${key.includes(".") ? key.split(".").pop() : key}`;
+      });
+    }
+    node.style.display = section.isActive ? "" : "none";
+    if (!existing) main.insertBefore(node, anchor ? anchor.nextSibling : main.firstChild);
+    else main.insertBefore(node, anchor ? anchor.nextSibling : main.firstChild);
+    anchor = node;
   });
 }
 
@@ -82,6 +113,10 @@ export function VisualCmsPreviewBridge({ pageKey }: VisualCmsPreviewBridgeProps)
 
       if (event.data.event === "SECTION_STYLE_UPDATED") {
         updatePreviewStyles(event.data);
+      }
+
+      if (event.data.event === "SECTION_STRUCTURE_UPDATED") {
+        updatePreviewStructure(event.data);
       }
 
       if (event.data.event === "SCROLL_TO_SECTION" && event.data.sectionId) {

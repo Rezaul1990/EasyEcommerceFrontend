@@ -1,6 +1,7 @@
-import { contentValue } from "@/config/contentFields";
-import { isVisualCmsPreviewMode, visualCmsFieldAttrs, visualCmsFieldStyle, visualCmsSectionAttrs, visualCmsSectionStyle, type VisualCmsPreviewSearchParams } from "@/config/visualCms";
+import { defaultManagedSections } from "@/config/contentFields";
+import { isVisualCmsPreviewMode, type VisualCmsPreviewSearchParams } from "@/config/visualCms";
 import { SiteHeader } from "@/components/layout/SiteHeader";
+import { activeSections, PageHeaderManagedSection } from "@/components/storefront/ManagedSectionRenderers";
 import { TrackOrderClient } from "@/components/storefront/TrackOrderClient";
 import { VisualCmsPreviewBridge } from "@/components/storefront/VisualCmsPreviewBridge";
 import { getPublicPageContent } from "@/services/apiClient";
@@ -20,18 +21,14 @@ export default async function TrackOrderPage({ searchParams }: TrackOrderPagePro
   const [params, pageContent] = await Promise.all([searchParams, getPublicPageContent("track-order")]);
   const visualPreview = isVisualCmsPreviewMode(params);
   const content = pageContent.content;
-  const headerStyles = pageContent.styles?.["page-header"];
-  const headerLayout = pageContent.layout?.["page-header"];
+  const sections = activeSections("track-order", pageContent.sections, defaultManagedSections("track-order"));
 
   return (
     <>
       <SiteHeader />
       <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
         {visualPreview ? <VisualCmsPreviewBridge pageKey="track-order" /> : null}
-        <div className="mb-6" style={visualCmsSectionStyle(headerStyles, headerLayout)} {...visualCmsSectionAttrs(visualPreview, "track-order", "page-header")}>
-          <p className="text-sm font-semibold uppercase tracking-wide text-teal-700" style={visualCmsFieldStyle(headerStyles, "text")} {...visualCmsFieldAttrs(visualPreview, "eyebrow", "text")}>{contentValue(content, "eyebrow", "Order status")}</p>
-          <h1 className="mt-2 text-3xl font-semibold text-slate-950" style={visualCmsFieldStyle(headerStyles, "heading")} {...visualCmsFieldAttrs(visualPreview, "title", "heading")}>{contentValue(content, "title", "Track order")}</h1>
-        </div>
+        {sections.map((section) => <PageHeaderManagedSection key={section.id} pageKey="track-order" section={section} maps={{ content, styles: pageContent.styles, layout: pageContent.layout }} visualPreview={visualPreview} fallbackEyebrow="Order status" fallbackTitle="Track order" />)}
         <TrackOrderClient initialOrderNumber={params?.order || ""} initialPhone={params?.phone || ""} />
       </main>
     </>

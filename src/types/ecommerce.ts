@@ -132,6 +132,15 @@ export type PageContent = {
   content: Record<string, string>;
   styles?: Record<string, Record<string, string>>;
   layout?: Record<string, Record<string, string>>;
+  sections?: Array<{
+    id: string;
+    pageId: string;
+    type: "hero" | "featured-products" | "page-header";
+    sourceId: string;
+    internalName: string;
+    sortOrder: number;
+    isActive: boolean;
+  }>;
   status: "draft" | "published";
   updatedAt?: string | null;
   publishedAt?: string | null;

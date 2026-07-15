@@ -188,7 +188,7 @@ export async function getAdminPageContent(pageKey: string) {
   return adminRequest<PageContent>(`/admin/content/${pageKey}`);
 }
 
-export async function updateAdminPageContent(pageKey: string, payload: { content: Record<string, string>; styles?: Record<string, Record<string, string>>; layout?: Record<string, Record<string, string>>; status?: "draft" | "published" }) {
+export async function updateAdminPageContent(pageKey: string, payload: { content: Record<string, string>; styles?: Record<string, Record<string, string>>; layout?: Record<string, Record<string, string>>; sections?: PageContent["sections"]; status?: "draft" | "published" }) {
   return adminRequest<PageContent>(`/admin/content/${pageKey}`, { method: "PUT", body: JSON.stringify(payload) });
 }
 

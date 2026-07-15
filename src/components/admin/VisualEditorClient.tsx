@@ -1,9 +1,9 @@
 "use client";
 
-import { editablePageDefinitions, pageDefinitionFor, sectionFields, type ContentField } from "@/config/contentFields";
+import { defaultManagedSections, editablePageDefinitions, pageDefinitionFor, sectionDefinitionFor, sectionFieldKey, sectionFields, type ContentField, type ManagedSection } from "@/config/contentFields";
 import type { VisualCmsLayoutBySection, VisualCmsPreviewMessage, VisualCmsSectionLayout, VisualCmsSectionStyles, VisualCmsStylesBySection } from "@/config/visualCms";
 import { getAdminPageContent, updateAdminPageContent } from "@/services/apiClient";
-import { AlertTriangle, Check, ExternalLink, FileText, Home, Loader2, Monitor, Save, Smartphone, Tablet } from "lucide-react";
+import { AlertTriangle, Check, Copy, ExternalLink, Eye, EyeOff, FileText, Home, Loader2, Monitor, Plus, Save, Smartphone, Tablet, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Viewport = "desktop" | "tablet" | "mobile";
@@ -28,6 +28,14 @@ function settingsSignature(settings: Record<string, Record<string, string>>) {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([sectionId, values]) => [sectionId, Object.entries(values).sort(([a], [b]) => a.localeCompare(b))]),
   );
+}
+
+function sectionsSignature(sections: ManagedSection[]) {
+  return JSON.stringify(sections.map((section) => ({ id: section.id, sourceId: section.sourceId, internalName: section.internalName, sortOrder: section.sortOrder, isActive: section.isActive })));
+}
+
+function compactSections(sections: ManagedSection[]) {
+  return sections.map((section, index) => ({ ...section, sortOrder: index }));
 }
 
 function ColorControl({ label, value, onChange }: { label: string; value?: string; onChange: (value: string) => void }) {
@@ -62,6 +70,7 @@ function SelectControl({ label, value, options, onChange }: { label: string; val
 
 export function VisualEditorClient() {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const sectionIdCounter = useRef(0);
   const [pageKey, setPageKey] = useState(editablePageDefinitions[0].pageKey);
   const [content, setContent] = useState<Record<string, string>>({});
   const [savedContent, setSavedContent] = useState<Record<string, string>>({});
@@ -69,6 +78,8 @@ export function VisualEditorClient() {
   const [savedStyles, setSavedStyles] = useState<VisualCmsStylesBySection>({});
   const [layout, setLayout] = useState<VisualCmsLayoutBySection>({});
   const [savedLayout, setSavedLayout] = useState<VisualCmsLayoutBySection>({});
+  const [sections, setSections] = useState<ManagedSection[]>(defaultManagedSections(editablePageDefinitions[0].pageKey));
+  const [savedSections, setSavedSections] = useState<ManagedSection[]>(defaultManagedSections(editablePageDefinitions[0].pageKey));
   const [selectedSectionId, setSelectedSectionId] = useState(editablePageDefinitions[0].sections[0].id);
   const [selectedFieldKey, setSelectedFieldKey] = useState(editablePageDefinitions[0].sections[0].fieldKeys[0]);
   const [viewport, setViewport] = useState<Viewport>("desktop");
@@ -79,12 +90,13 @@ export function VisualEditorClient() {
   const [success, setSuccess] = useState("");
 
   const page = useMemo(() => pageDefinitionFor(pageKey), [pageKey]);
-  const selectedSection = page.sections.find((section) => section.id === selectedSectionId) || page.sections[0];
-  const fields = sectionFields(page, selectedSection);
+  const selectedSection = sections.find((section) => section.id === selectedSectionId) || sections[0] || defaultManagedSections(pageKey)[0];
+  const selectedDefinition = sectionDefinitionFor(pageKey, selectedSection);
+  const fields = sectionFields(page, selectedDefinition);
   const selectedField = fields.find((field) => field.key === selectedFieldKey) || fields[0] || page.fields[0];
   const selectedStyles = styles[selectedSectionId] || {};
   const selectedLayout = layout[selectedSectionId] || {};
-  const dirty = contentSignature(content) !== contentSignature(savedContent) || settingsSignature(styles) !== settingsSignature(savedStyles) || settingsSignature(layout) !== settingsSignature(savedLayout);
+  const dirty = contentSignature(content) !== contentSignature(savedContent) || settingsSignature(styles) !== settingsSignature(savedStyles) || settingsSignature(layout) !== settingsSignature(savedLayout) || sectionsSignature(sections) !== sectionsSignature(savedSections);
   const previewUrl = `${page.path}${page.path.includes("?") ? "&" : "?"}visualEditor=1`;
 
   const postToPreview = useCallback((message: VisualCmsPreviewMessage) => {
@@ -106,16 +118,18 @@ export function VisualEditorClient() {
         const nextContent = data.content || {};
         const nextStyles = (data.styles || {}) as VisualCmsStylesBySection;
         const nextLayout = (data.layout || {}) as VisualCmsLayoutBySection;
-        const nextPage = pageDefinitionFor(pageKey);
-        const nextSection = nextPage.sections[0];
+        const nextSections = compactSections((data.sections?.length ? data.sections : defaultManagedSections(pageKey)) as ManagedSection[]);
+        const nextSection = nextSections[0] || defaultManagedSections(pageKey)[0];
         setContent(nextContent);
         setSavedContent(nextContent);
         setStyles(nextStyles);
         setSavedStyles(nextStyles);
         setLayout(nextLayout);
         setSavedLayout(nextLayout);
+        setSections(nextSections);
+        setSavedSections(nextSections);
         setSelectedSectionId(nextSection.id);
-        setSelectedFieldKey(nextSection.fieldKeys[0]);
+        setSelectedFieldKey(sectionDefinitionFor(pageKey, nextSection).fieldKeys[0]);
       } catch (err) {
         if (!ignore) setError(err instanceof Error ? err.message : "Page content could not load");
       } finally {
@@ -141,6 +155,13 @@ export function VisualEditorClient() {
   }, [layout, postToPreview, previewReady, styles]);
 
   useEffect(() => {
+    if (!previewReady) return;
+    postToPreview({ event: "SECTION_STRUCTURE_UPDATED", sections });
+    postToPreview({ event: "SECTION_CONTENT_UPDATED", content });
+    postToPreview({ event: "SECTION_STYLE_UPDATED", styles, layout });
+  }, [content, layout, postToPreview, previewReady, sections, styles]);
+
+  useEffect(() => {
     if (!previewReady || !selectedSectionId) return;
     postToPreview({ event: "SCROLL_TO_SECTION", sectionId: selectedSectionId });
   }, [postToPreview, previewReady, selectedSectionId]);
@@ -153,23 +174,24 @@ export function VisualEditorClient() {
 
       if (data.event === "PREVIEW_READY") {
         setPreviewReady(true);
+        postToPreview({ event: "SECTION_STRUCTURE_UPDATED", sections });
         postToPreview({ event: "SECTION_CONTENT_UPDATED", content });
         postToPreview({ event: "SECTION_STYLE_UPDATED", styles, layout });
         postToPreview({ event: "SCROLL_TO_SECTION", sectionId: selectedSectionId });
       }
 
       if (data.event === "SECTION_SELECTED" && data.sectionId) {
-        const nextSection = page.sections.find((section) => section.id === data.sectionId);
+        const nextSection = sections.find((section) => section.id === data.sectionId);
         if (nextSection) {
           setSelectedSectionId(nextSection.id);
-          setSelectedFieldKey(nextSection.fieldKeys[0]);
+          setSelectedFieldKey(sectionDefinitionFor(pageKey, nextSection).fieldKeys[0]);
         }
       }
     }
 
     window.addEventListener("message", handlePreviewMessage);
     return () => window.removeEventListener("message", handlePreviewMessage);
-  }, [content, layout, page.sections, pageKey, postToPreview, selectedSectionId, styles]);
+  }, [content, layout, pageKey, postToPreview, sections, selectedSectionId, styles]);
 
   useEffect(() => {
     function handleBeforeUnload(event: BeforeUnloadEvent) {
@@ -189,14 +211,98 @@ export function VisualEditorClient() {
   }
 
   function selectSection(sectionId: string) {
-    const nextSection = page.sections.find((section) => section.id === sectionId);
+    const nextSection = sections.find((section) => section.id === sectionId);
     if (!nextSection) return;
     setSelectedSectionId(sectionId);
-    setSelectedFieldKey(nextSection.fieldKeys[0]);
+    setSelectedFieldKey(sectionDefinitionFor(pageKey, nextSection).fieldKeys[0]);
   }
 
   function updateField(key: string, value: string) {
-    setContent((current) => ({ ...current, [key]: value }));
+    setContent((current) => ({ ...current, [sectionFieldKey(selectedSection, key)]: value }));
+    setSuccess("");
+  }
+
+  function nextSectionId(sourceId: string) {
+    sectionIdCounter.current += 1;
+    const suffix = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID().slice(0, 8) : `${sectionIdCounter.current}`;
+    return `${sourceId}-${suffix}`;
+  }
+
+  function createSection(sourceId: string) {
+    const definition = page.sections.find((section) => section.id === sourceId);
+    if (!definition) return;
+    const id = nextSectionId(sourceId);
+    const nextSection: ManagedSection = {
+      id,
+      pageId: pageKey,
+      type: definition.type,
+      sourceId: definition.id,
+      internalName: `${definition.label} copy`,
+      sortOrder: sections.length,
+      isActive: true,
+    };
+    const nextContent = { ...content };
+    sectionFields(page, definition).forEach((field) => {
+      nextContent[sectionFieldKey(nextSection, field.key)] = fieldValue(content, field);
+    });
+    setContent(nextContent);
+    setSections((current) => compactSections([...current, nextSection]));
+    setSelectedSectionId(id);
+    setSelectedFieldKey(definition.fieldKeys[0]);
+    setSuccess("");
+  }
+
+  function duplicateSection(section: ManagedSection) {
+    const definition = sectionDefinitionFor(pageKey, section);
+    const id = nextSectionId(section.sourceId);
+    const nextSection: ManagedSection = {
+      ...section,
+      id,
+      internalName: `${section.internalName} copy`,
+      sortOrder: section.sortOrder + 1,
+      isActive: true,
+    };
+    const nextContent = { ...content };
+    sectionFields(page, definition).forEach((field) => {
+      nextContent[sectionFieldKey(nextSection, field.key)] = content[sectionFieldKey(section, field.key)] || field.fallback;
+    });
+    setContent(nextContent);
+    setStyles((current) => ({ ...current, [id]: { ...(current[section.id] || {}) } }));
+    setLayout((current) => ({ ...current, [id]: { ...(current[section.id] || {}) } }));
+    setSections((current) => compactSections([...current.slice(0, section.sortOrder + 1), nextSection, ...current.slice(section.sortOrder + 1)]));
+    setSelectedSectionId(id);
+    setSelectedFieldKey(definition.fieldKeys[0]);
+    setSuccess("");
+  }
+
+  function updateSection(sectionId: string, patch: Partial<ManagedSection>) {
+    setSections((current) => compactSections(current.map((section) => (section.id === sectionId ? { ...section, ...patch } : section))));
+    setSuccess("");
+  }
+
+  function moveSection(sectionId: string, direction: -1 | 1) {
+    setSections((current) => {
+      const index = current.findIndex((section) => section.id === sectionId);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
+      const next = [...current];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return compactSections(next);
+    });
+    setSuccess("");
+  }
+
+  function deleteSection(section: ManagedSection) {
+    if (sections.length <= 1) {
+      window.alert("At least one section must remain on the page.");
+      return;
+    }
+    if (!window.confirm(`Delete "${section.internalName}" from this page?`)) return;
+    setSections((current) => compactSections(current.filter((item) => item.id !== section.id)));
+    setSelectedSectionId((current) => {
+      if (current !== section.id) return current;
+      return sections.find((item) => item.id !== section.id)?.id || "";
+    });
     setSuccess("");
   }
 
@@ -231,16 +337,19 @@ export function VisualEditorClient() {
     setError("");
     setSuccess("");
     try {
-      const data = await updateAdminPageContent(pageKey, { content, styles, layout, status: "published" });
+      const data = await updateAdminPageContent(pageKey, { content, styles, layout, sections, status: "published" });
       const nextContent = data.content || {};
       const nextStyles = (data.styles || {}) as VisualCmsStylesBySection;
       const nextLayout = (data.layout || {}) as VisualCmsLayoutBySection;
+      const nextSections = compactSections((data.sections?.length ? data.sections : defaultManagedSections(pageKey)) as ManagedSection[]);
       setContent(nextContent);
       setSavedContent(nextContent);
       setStyles(nextStyles);
       setSavedStyles(nextStyles);
       setLayout(nextLayout);
       setSavedLayout(nextLayout);
+      setSections(nextSections);
+      setSavedSections(nextSections);
       setSuccess("Changes saved");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Changes could not be saved");
@@ -253,6 +362,7 @@ export function VisualEditorClient() {
     setContent(savedContent);
     setStyles(savedStyles);
     setLayout(savedLayout);
+    setSections(savedSections);
     setSuccess("Local changes discarded");
   }
 
@@ -317,12 +427,27 @@ export function VisualEditorClient() {
               <h2 className="text-sm font-semibold text-slate-950">Sections</h2>
             </div>
             <div className="space-y-2 p-4">
-              {page.sections.map((section, index) => {
+              <div className="mb-4 rounded-md border border-slate-200 bg-white p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Add section</p>
+                <div className="mt-2 space-y-2">
+                  {page.sections.map((definition) => (
+                    <button key={definition.id} type="button" onClick={() => createSection(definition.id)} className="flex w-full items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:border-teal-200 hover:bg-teal-50">
+                      <span>{definition.label}</span>
+                      <Plus size={15} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {sections.map((section, index) => {
                 const active = section.id === selectedSectionId;
+                const definition = sectionDefinitionFor(pageKey, section);
                 return (
                   <button key={section.id} type="button" onClick={() => selectSection(section.id)} className={`w-full rounded-md border px-3 py-3 text-left ${active ? "border-teal-300 bg-white text-teal-900 shadow-sm" : "border-transparent text-slate-700 hover:border-slate-200 hover:bg-white"}`}>
-                    <span className="block text-sm font-semibold">{index + 1}. {section.label}</span>
-                    <span className="mt-1 block text-xs leading-5 text-slate-500">{section.description}</span>
+                    <span className="flex items-center justify-between gap-2 text-sm font-semibold">
+                      <span>{index + 1}. {section.internalName}</span>
+                      {section.isActive ? <Eye size={14} /> : <EyeOff size={14} />}
+                    </span>
+                    <span className="mt-1 block text-xs leading-5 text-slate-500">{definition.group} / {definition.label}</span>
                   </button>
                 );
               })}
@@ -356,18 +481,38 @@ export function VisualEditorClient() {
 
           <aside className="border-l border-slate-200 bg-white">
             <div className="border-b border-slate-200 px-4 py-3">
-              <h2 className="text-sm font-semibold text-slate-950">{selectedSection.label}</h2>
-              <p className="mt-1 text-xs text-slate-500">{selectedSection.description}</p>
+              <h2 className="text-sm font-semibold text-slate-950">{selectedSection.internalName}</h2>
+              <p className="mt-1 text-xs text-slate-500">{selectedDefinition.description}</p>
             </div>
             <div className="space-y-4 p-4">
               {loading ? <p className="text-sm text-slate-500">Loading fields...</p> : null}
+              <label className="block space-y-2 text-sm font-medium text-slate-700">
+                <span>Internal label</span>
+                <input value={selectedSection.internalName} onChange={(event) => updateSection(selectedSection.id, { internalName: event.target.value })} className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100" />
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => moveSection(selectedSection.id, -1)} className="rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">Move up</button>
+                <button type="button" onClick={() => moveSection(selectedSection.id, 1)} className="rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">Move down</button>
+                <button type="button" onClick={() => updateSection(selectedSection.id, { isActive: !selectedSection.isActive })} className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">
+                  {selectedSection.isActive ? <EyeOff size={15} /> : <Eye size={15} />}
+                  {selectedSection.isActive ? "Hide" : "Show"}
+                </button>
+                <button type="button" onClick={() => duplicateSection(selectedSection)} className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">
+                  <Copy size={15} />
+                  Duplicate
+                </button>
+              </div>
+              <button type="button" onClick={() => deleteSection(selectedSection)} className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700">
+                <Trash2 size={15} />
+                Delete section
+              </button>
               {fields.map((field) => (
                 <label key={field.key} className="block space-y-2 text-sm font-medium text-slate-700">
                   <span>{field.label}</span>
                   {field.multiline ? (
-                    <textarea value={fieldValue(content, field)} onFocus={() => setSelectedFieldKey(field.key)} onChange={(event) => updateField(field.key, event.target.value)} rows={5} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100" />
+                    <textarea value={content[sectionFieldKey(selectedSection, field.key)] || field.fallback} onFocus={() => setSelectedFieldKey(field.key)} onChange={(event) => updateField(field.key, event.target.value)} rows={5} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100" />
                   ) : (
-                    <input value={fieldValue(content, field)} onFocus={() => setSelectedFieldKey(field.key)} onChange={(event) => updateField(field.key, event.target.value)} className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100" />
+                    <input value={content[sectionFieldKey(selectedSection, field.key)] || field.fallback} onFocus={() => setSelectedFieldKey(field.key)} onChange={(event) => updateField(field.key, event.target.value)} className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100" />
                   )}
                 </label>
               ))}

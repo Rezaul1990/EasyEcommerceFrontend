@@ -7,9 +7,21 @@ export type ContentField = {
 
 export type ContentSectionDefinition = {
   id: string;
+  type: "hero" | "featured-products" | "page-header";
+  group: "Hero" | "Commerce" | "Content";
   label: string;
   description: string;
   fieldKeys: string[];
+};
+
+export type ManagedSection = {
+  id: string;
+  pageId: string;
+  type: ContentSectionDefinition["type"];
+  sourceId: string;
+  internalName: string;
+  sortOrder: number;
+  isActive: boolean;
 };
 
 export type EditablePageDefinition = {
@@ -36,8 +48,8 @@ export const editablePageDefinitions: EditablePageDefinition[] = [
       { key: "featuredLink", label: "Featured link", fallback: "View all" },
     ],
     sections: [
-      { id: "hero", label: "Hero", description: "Main storefront headline, supporting copy, and buttons.", fieldKeys: ["eyebrow", "title", "subtitle", "primaryButton", "secondaryButton"] },
-      { id: "featured-products", label: "Featured products", description: "Featured catalog heading and link text.", fieldKeys: ["featuredEyebrow", "featuredTitle", "featuredLink"] },
+      { id: "hero", type: "hero", group: "Hero", label: "Hero", description: "Main storefront headline, supporting copy, and buttons.", fieldKeys: ["eyebrow", "title", "subtitle", "primaryButton", "secondaryButton"] },
+      { id: "featured-products", type: "featured-products", group: "Commerce", label: "Featured products", description: "Featured catalog heading and link text.", fieldKeys: ["featuredEyebrow", "featuredTitle", "featuredLink"] },
     ],
   },
   {
@@ -49,7 +61,7 @@ export const editablePageDefinitions: EditablePageDefinition[] = [
       { key: "title", label: "Title", fallback: "Products" },
       { key: "subtitle", label: "Subtitle", fallback: "Browse the active catalog and use eligible coupons for instant checkout savings.", multiline: true },
     ],
-    sections: [{ id: "page-header", label: "Page header", description: "Products page headline and introduction.", fieldKeys: ["eyebrow", "title", "subtitle"] }],
+    sections: [{ id: "page-header", type: "page-header", group: "Content", label: "Page header", description: "Products page headline and introduction.", fieldKeys: ["eyebrow", "title", "subtitle"] }],
   },
   {
     pageKey: "checkout",
@@ -59,7 +71,7 @@ export const editablePageDefinitions: EditablePageDefinition[] = [
       { key: "eyebrow", label: "Eyebrow", fallback: "Place order" },
       { key: "title", label: "Title", fallback: "Checkout" },
     ],
-    sections: [{ id: "page-header", label: "Page header", description: "Checkout page heading text.", fieldKeys: ["eyebrow", "title"] }],
+    sections: [{ id: "page-header", type: "page-header", group: "Content", label: "Page header", description: "Checkout page heading text.", fieldKeys: ["eyebrow", "title"] }],
   },
   {
     pageKey: "track-order",
@@ -69,7 +81,7 @@ export const editablePageDefinitions: EditablePageDefinition[] = [
       { key: "eyebrow", label: "Eyebrow", fallback: "Order status" },
       { key: "title", label: "Title", fallback: "Track order" },
     ],
-    sections: [{ id: "page-header", label: "Page header", description: "Track order page heading text.", fieldKeys: ["eyebrow", "title"] }],
+    sections: [{ id: "page-header", type: "page-header", group: "Content", label: "Page header", description: "Track order page heading text.", fieldKeys: ["eyebrow", "title"] }],
   },
   {
     pageKey: "cart",
@@ -79,7 +91,7 @@ export const editablePageDefinitions: EditablePageDefinition[] = [
       { key: "eyebrow", label: "Eyebrow", fallback: "Review" },
       { key: "title", label: "Title", fallback: "Cart" },
     ],
-    sections: [{ id: "page-header", label: "Page header", description: "Cart page heading text.", fieldKeys: ["eyebrow", "title"] }],
+    sections: [{ id: "page-header", type: "page-header", group: "Content", label: "Page header", description: "Cart page heading text.", fieldKeys: ["eyebrow", "title"] }],
   },
   {
     pageKey: "wishlist",
@@ -89,7 +101,7 @@ export const editablePageDefinitions: EditablePageDefinition[] = [
       { key: "eyebrow", label: "Eyebrow", fallback: "Saved products" },
       { key: "title", label: "Title", fallback: "Wishlist" },
     ],
-    sections: [{ id: "page-header", label: "Page header", description: "Wishlist page heading text.", fieldKeys: ["eyebrow", "title"] }],
+    sections: [{ id: "page-header", type: "page-header", group: "Content", label: "Page header", description: "Wishlist page heading text.", fieldKeys: ["eyebrow", "title"] }],
   },
 ];
 
@@ -108,4 +120,26 @@ export function contentFieldFor(pageKey: string, fieldKey: string) {
 
 export function sectionFields(page: EditablePageDefinition, section: ContentSectionDefinition) {
   return section.fieldKeys.map((fieldKey) => page.fields.find((field) => field.key === fieldKey)).filter((field): field is ContentField => Boolean(field));
+}
+
+export function defaultManagedSections(pageKey: string): ManagedSection[] {
+  const page = pageDefinitionFor(pageKey);
+  return page.sections.map((section, index) => ({
+    id: section.id,
+    pageId: page.pageKey,
+    type: section.type,
+    sourceId: section.id,
+    internalName: section.label,
+    sortOrder: index,
+    isActive: true,
+  }));
+}
+
+export function sectionDefinitionFor(pageKey: string, section: Pick<ManagedSection, "sourceId" | "type">) {
+  const page = pageDefinitionFor(pageKey);
+  return page.sections.find((item) => item.id === section.sourceId) || page.sections.find((item) => item.type === section.type) || page.sections[0];
+}
+
+export function sectionFieldKey(section: ManagedSection, fieldKey: string) {
+  return section.id === section.sourceId ? fieldKey : `${section.id}.${fieldKey}`;
 }

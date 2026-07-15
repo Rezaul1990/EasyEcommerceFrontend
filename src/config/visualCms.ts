@@ -151,7 +151,7 @@ export function mergeVisualStyle(base: CSSProperties | undefined, next: CSSPrope
   return { ...(base || {}), ...Object.fromEntries(Object.entries(next).filter(([, value]) => value !== undefined)) };
 }
 
-export type VisualCmsPreviewEventName = "PREVIEW_READY" | "SECTION_SELECTED" | "SECTION_HOVERED" | "SECTION_CONTENT_UPDATED" | "SECTION_STYLE_UPDATED" | "SCROLL_TO_SECTION";
+export type VisualCmsPreviewEventName = "PREVIEW_READY" | "SECTION_SELECTED" | "SECTION_HOVERED" | "SECTION_CONTENT_UPDATED" | "SECTION_STYLE_UPDATED" | "SECTION_STRUCTURE_UPDATED" | "SCROLL_TO_SECTION";
 
 export type VisualCmsPreviewMessage = {
   event: VisualCmsPreviewEventName;
@@ -160,4 +160,5 @@ export type VisualCmsPreviewMessage = {
   content?: Record<string, string>;
   styles?: VisualCmsStylesBySection;
   layout?: VisualCmsLayoutBySection;
+  sections?: Array<{ id: string; sourceId: string; isActive: boolean; sortOrder: number }>;
 };
