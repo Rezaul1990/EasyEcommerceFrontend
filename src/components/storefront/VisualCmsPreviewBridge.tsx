@@ -1,6 +1,6 @@
 "use client";
 
-import type { VisualCmsPreviewMessage } from "@/config/visualCms";
+import { visualCmsFieldStyle, visualCmsSectionStyle, type VisualCmsPreviewMessage } from "@/config/visualCms";
 import { useEffect } from "react";
 
 type VisualCmsPreviewBridgeProps = {
@@ -10,7 +10,7 @@ type VisualCmsPreviewBridgeProps = {
 function isPreviewMessage(value: unknown): value is VisualCmsPreviewMessage {
   if (!value || typeof value !== "object") return false;
   const event = (value as { event?: unknown }).event;
-  return event === "SECTION_CONTENT_UPDATED" || event === "SCROLL_TO_SECTION";
+  return event === "SECTION_CONTENT_UPDATED" || event === "SECTION_STYLE_UPDATED" || event === "SCROLL_TO_SECTION";
 }
 
 function selectSection(sectionId: string) {
@@ -24,6 +24,24 @@ function updatePreviewContent(content: Record<string, string>) {
   Object.entries(content).forEach(([key, value]) => {
     document.querySelectorAll<HTMLElement>(`[data-visual-cms-field-key="${key}"]`).forEach((node) => {
       node.textContent = value;
+    });
+  });
+}
+
+function updatePreviewStyles(message: VisualCmsPreviewMessage) {
+  const styles = message.styles || {};
+  const layout = message.layout || {};
+  const sectionIds = new Set([...Object.keys(styles), ...Object.keys(layout)]);
+
+  sectionIds.forEach((sectionId) => {
+    const section = document.querySelector<HTMLElement>(`[data-visual-cms-section-id="${sectionId}"]`);
+    if (!section) return;
+    Object.assign(section.style, visualCmsSectionStyle(styles[sectionId], layout[sectionId]));
+    section.querySelectorAll<HTMLElement>("[data-visual-cms-field-key]").forEach((node) => {
+      const role = node.dataset.visualCmsFieldRole === "heading" || node.dataset.visualCmsFieldRole === "button" ? node.dataset.visualCmsFieldRole : "text";
+      Object.assign(node.style, visualCmsFieldStyle(styles[sectionId], role));
+      const button = node.closest<HTMLElement>("a,button");
+      if (role === "button" && button) Object.assign(button.style, visualCmsFieldStyle(styles[sectionId], "button"));
     });
   });
 }
@@ -60,6 +78,10 @@ export function VisualCmsPreviewBridge({ pageKey }: VisualCmsPreviewBridgeProps)
 
       if (event.data.event === "SECTION_CONTENT_UPDATED" && event.data.content) {
         updatePreviewContent(event.data.content);
+      }
+
+      if (event.data.event === "SECTION_STYLE_UPDATED") {
+        updatePreviewStyles(event.data);
       }
 
       if (event.data.event === "SCROLL_TO_SECTION" && event.data.sectionId) {

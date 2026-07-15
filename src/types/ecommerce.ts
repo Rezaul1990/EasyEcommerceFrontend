@@ -130,6 +130,8 @@ export type EditablePage = {
 export type PageContent = {
   pageKey: string;
   content: Record<string, string>;
+  styles?: Record<string, Record<string, string>>;
+  layout?: Record<string, Record<string, string>>;
   status: "draft" | "published";
   updatedAt?: string | null;
   publishedAt?: string | null;

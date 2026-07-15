@@ -1,7 +1,7 @@
 "use client";
 
 import { editablePageDefinitions, pageDefinitionFor, sectionFields, type ContentField } from "@/config/contentFields";
-import type { VisualCmsPreviewMessage } from "@/config/visualCms";
+import type { VisualCmsLayoutBySection, VisualCmsPreviewMessage, VisualCmsSectionLayout, VisualCmsSectionStyles, VisualCmsStylesBySection } from "@/config/visualCms";
 import { getAdminPageContent, updateAdminPageContent } from "@/services/apiClient";
 import { AlertTriangle, Check, ExternalLink, FileText, Home, Loader2, Monitor, Save, Smartphone, Tablet } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -18,8 +18,46 @@ function previewWidth(viewport: Viewport) {
   return "max-w-full";
 }
 
-function contentSignature(content: Record<string, string>) {
+function contentSignature(content: Record<string, unknown>) {
   return JSON.stringify(Object.entries(content).sort(([a], [b]) => a.localeCompare(b)));
+}
+
+function settingsSignature(settings: Record<string, Record<string, string>>) {
+  return JSON.stringify(
+    Object.entries(settings)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([sectionId, values]) => [sectionId, Object.entries(values).sort(([a], [b]) => a.localeCompare(b))]),
+  );
+}
+
+function ColorControl({ label, value, onChange }: { label: string; value?: string; onChange: (value: string) => void }) {
+  return (
+    <label className="flex items-center justify-between gap-3 text-sm font-medium text-slate-700">
+      <span>{label}</span>
+      <span className="flex items-center gap-2">
+        <input type="color" value={value || "#ffffff"} onChange={(event) => onChange(event.target.value)} className="size-9 rounded border border-slate-300 bg-white p-1" />
+        <button type="button" onClick={() => onChange("")} className="rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-500">
+          Clear
+        </button>
+      </span>
+    </label>
+  );
+}
+
+function SelectControl({ label, value, options, onChange }: { label: string; value?: string; options: Array<{ value: string; label: string }>; onChange: (value: string) => void }) {
+  return (
+    <label className="block space-y-2 text-sm font-medium text-slate-700">
+      <span>{label}</span>
+      <select value={value || ""} onChange={(event) => onChange(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+        <option value="">Default</option>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 }
 
 export function VisualEditorClient() {
@@ -27,6 +65,10 @@ export function VisualEditorClient() {
   const [pageKey, setPageKey] = useState(editablePageDefinitions[0].pageKey);
   const [content, setContent] = useState<Record<string, string>>({});
   const [savedContent, setSavedContent] = useState<Record<string, string>>({});
+  const [styles, setStyles] = useState<VisualCmsStylesBySection>({});
+  const [savedStyles, setSavedStyles] = useState<VisualCmsStylesBySection>({});
+  const [layout, setLayout] = useState<VisualCmsLayoutBySection>({});
+  const [savedLayout, setSavedLayout] = useState<VisualCmsLayoutBySection>({});
   const [selectedSectionId, setSelectedSectionId] = useState(editablePageDefinitions[0].sections[0].id);
   const [selectedFieldKey, setSelectedFieldKey] = useState(editablePageDefinitions[0].sections[0].fieldKeys[0]);
   const [viewport, setViewport] = useState<Viewport>("desktop");
@@ -40,7 +82,9 @@ export function VisualEditorClient() {
   const selectedSection = page.sections.find((section) => section.id === selectedSectionId) || page.sections[0];
   const fields = sectionFields(page, selectedSection);
   const selectedField = fields.find((field) => field.key === selectedFieldKey) || fields[0] || page.fields[0];
-  const dirty = contentSignature(content) !== contentSignature(savedContent);
+  const selectedStyles = styles[selectedSectionId] || {};
+  const selectedLayout = layout[selectedSectionId] || {};
+  const dirty = contentSignature(content) !== contentSignature(savedContent) || settingsSignature(styles) !== settingsSignature(savedStyles) || settingsSignature(layout) !== settingsSignature(savedLayout);
   const previewUrl = `${page.path}${page.path.includes("?") ? "&" : "?"}visualEditor=1`;
 
   const postToPreview = useCallback((message: VisualCmsPreviewMessage) => {
@@ -60,10 +104,16 @@ export function VisualEditorClient() {
         const data = await getAdminPageContent(pageKey);
         if (ignore) return;
         const nextContent = data.content || {};
+        const nextStyles = (data.styles || {}) as VisualCmsStylesBySection;
+        const nextLayout = (data.layout || {}) as VisualCmsLayoutBySection;
         const nextPage = pageDefinitionFor(pageKey);
         const nextSection = nextPage.sections[0];
         setContent(nextContent);
         setSavedContent(nextContent);
+        setStyles(nextStyles);
+        setSavedStyles(nextStyles);
+        setLayout(nextLayout);
+        setSavedLayout(nextLayout);
         setSelectedSectionId(nextSection.id);
         setSelectedFieldKey(nextSection.fieldKeys[0]);
       } catch (err) {
@@ -86,6 +136,11 @@ export function VisualEditorClient() {
   }, [content, postToPreview, previewReady]);
 
   useEffect(() => {
+    if (!previewReady) return;
+    postToPreview({ event: "SECTION_STYLE_UPDATED", styles, layout });
+  }, [layout, postToPreview, previewReady, styles]);
+
+  useEffect(() => {
     if (!previewReady || !selectedSectionId) return;
     postToPreview({ event: "SCROLL_TO_SECTION", sectionId: selectedSectionId });
   }, [postToPreview, previewReady, selectedSectionId]);
@@ -99,6 +154,7 @@ export function VisualEditorClient() {
       if (data.event === "PREVIEW_READY") {
         setPreviewReady(true);
         postToPreview({ event: "SECTION_CONTENT_UPDATED", content });
+        postToPreview({ event: "SECTION_STYLE_UPDATED", styles, layout });
         postToPreview({ event: "SCROLL_TO_SECTION", sectionId: selectedSectionId });
       }
 
@@ -113,7 +169,7 @@ export function VisualEditorClient() {
 
     window.addEventListener("message", handlePreviewMessage);
     return () => window.removeEventListener("message", handlePreviewMessage);
-  }, [content, page.sections, pageKey, postToPreview, selectedSectionId]);
+  }, [content, layout, page.sections, pageKey, postToPreview, selectedSectionId, styles]);
 
   useEffect(() => {
     function handleBeforeUnload(event: BeforeUnloadEvent) {
@@ -144,15 +200,47 @@ export function VisualEditorClient() {
     setSuccess("");
   }
 
+  function updateStyle(key: keyof VisualCmsSectionStyles, value: string) {
+    setStyles((current) => {
+      const sectionStyles = { ...(current[selectedSectionId] || {}) };
+      if (value) sectionStyles[key] = value;
+      else delete sectionStyles[key];
+      return { ...current, [selectedSectionId]: sectionStyles };
+    });
+    setSuccess("");
+  }
+
+  function updateLayout(key: keyof VisualCmsSectionLayout, value: string) {
+    setLayout((current) => {
+      const sectionLayout = { ...(current[selectedSectionId] || {}) };
+      if (value) sectionLayout[key] = value;
+      else delete sectionLayout[key];
+      return { ...current, [selectedSectionId]: sectionLayout };
+    });
+    setSuccess("");
+  }
+
+  function resetSectionDesign() {
+    setStyles((current) => ({ ...current, [selectedSectionId]: {} }));
+    setLayout((current) => ({ ...current, [selectedSectionId]: {} }));
+    setSuccess("");
+  }
+
   async function saveChanges() {
     setSaving(true);
     setError("");
     setSuccess("");
     try {
-      const data = await updateAdminPageContent(pageKey, { content, status: "published" });
+      const data = await updateAdminPageContent(pageKey, { content, styles, layout, status: "published" });
       const nextContent = data.content || {};
+      const nextStyles = (data.styles || {}) as VisualCmsStylesBySection;
+      const nextLayout = (data.layout || {}) as VisualCmsLayoutBySection;
       setContent(nextContent);
       setSavedContent(nextContent);
+      setStyles(nextStyles);
+      setSavedStyles(nextStyles);
+      setLayout(nextLayout);
+      setSavedLayout(nextLayout);
       setSuccess("Changes saved");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Changes could not be saved");
@@ -163,6 +251,8 @@ export function VisualEditorClient() {
 
   function discardChanges() {
     setContent(savedContent);
+    setStyles(savedStyles);
+    setLayout(savedLayout);
     setSuccess("Local changes discarded");
   }
 
@@ -283,6 +373,93 @@ export function VisualEditorClient() {
               ))}
               <button type="button" onClick={() => updateField(selectedField.key, selectedField.fallback)} className="rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">
                 Reset selected field
+              </button>
+              <div className="border-t border-slate-200 pt-4">
+                <h3 className="text-sm font-semibold text-slate-950">Colors</h3>
+                <div className="mt-3 space-y-3">
+                  <ColorControl label="Background" value={selectedStyles.backgroundColor} onChange={(value) => updateStyle("backgroundColor", value)} />
+                  <ColorControl label="Heading" value={selectedStyles.headingColor} onChange={(value) => updateStyle("headingColor", value)} />
+                  <ColorControl label="Text" value={selectedStyles.textColor} onChange={(value) => updateStyle("textColor", value)} />
+                  <ColorControl label="Button background" value={selectedStyles.buttonBackgroundColor} onChange={(value) => updateStyle("buttonBackgroundColor", value)} />
+                  <ColorControl label="Button text" value={selectedStyles.buttonTextColor} onChange={(value) => updateStyle("buttonTextColor", value)} />
+                  <ColorControl label="Border" value={selectedStyles.borderColor} onChange={(value) => updateStyle("borderColor", value)} />
+                </div>
+              </div>
+              <div className="border-t border-slate-200 pt-4">
+                <h3 className="text-sm font-semibold text-slate-950">Typography</h3>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                  <SelectControl label="Font size" value={selectedStyles.fontSize} onChange={(value) => updateStyle("fontSize", value)} options={[
+                    { value: "sm", label: "Small" },
+                    { value: "base", label: "Base" },
+                    { value: "lg", label: "Large" },
+                    { value: "xl", label: "XL" },
+                    { value: "2xl", label: "2XL" },
+                    { value: "3xl", label: "3XL" },
+                    { value: "4xl", label: "4XL" },
+                    { value: "5xl", label: "5XL" },
+                  ]} />
+                  <SelectControl label="Font weight" value={selectedStyles.fontWeight} onChange={(value) => updateStyle("fontWeight", value)} options={[
+                    { value: "normal", label: "Normal" },
+                    { value: "medium", label: "Medium" },
+                    { value: "semibold", label: "Semibold" },
+                    { value: "bold", label: "Bold" },
+                  ]} />
+                  <SelectControl label="Line height" value={selectedStyles.lineHeight} onChange={(value) => updateStyle("lineHeight", value)} options={[
+                    { value: "tight", label: "Tight" },
+                    { value: "normal", label: "Normal" },
+                    { value: "relaxed", label: "Relaxed" },
+                  ]} />
+                  <SelectControl label="Letter spacing" value={selectedStyles.letterSpacing} onChange={(value) => updateStyle("letterSpacing", value)} options={[
+                    { value: "normal", label: "Normal" },
+                    { value: "wide", label: "Wide" },
+                  ]} />
+                </div>
+              </div>
+              <div className="border-t border-slate-200 pt-4">
+                <h3 className="text-sm font-semibold text-slate-950">Layout</h3>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                  <SelectControl label="Text alignment" value={selectedLayout.alignment} onChange={(value) => updateLayout("alignment", value)} options={[
+                    { value: "left", label: "Left" },
+                    { value: "center", label: "Center" },
+                    { value: "right", label: "Right" },
+                  ]} />
+                  <SelectControl label="Vertical spacing" value={selectedLayout.spacingY} onChange={(value) => updateLayout("spacingY", value)} options={[
+                    { value: "compact", label: "Compact" },
+                    { value: "normal", label: "Normal" },
+                    { value: "spacious", label: "Spacious" },
+                  ]} />
+                  <SelectControl label="Minimum height" value={selectedLayout.minHeight} onChange={(value) => updateLayout("minHeight", value)} options={[
+                    { value: "none", label: "None" },
+                    { value: "sm", label: "Small" },
+                    { value: "md", label: "Medium" },
+                    { value: "lg", label: "Large" },
+                  ]} />
+                </div>
+              </div>
+              <div className="border-t border-slate-200 pt-4">
+                <h3 className="text-sm font-semibold text-slate-950">Decoration</h3>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                  <SelectControl label="Border width" value={selectedStyles.borderWidth} onChange={(value) => updateStyle("borderWidth", value)} options={[
+                    { value: "none", label: "None" },
+                    { value: "thin", label: "Thin" },
+                    { value: "medium", label: "Medium" },
+                  ]} />
+                  <SelectControl label="Radius" value={selectedStyles.borderRadius} onChange={(value) => updateStyle("borderRadius", value)} options={[
+                    { value: "none", label: "None" },
+                    { value: "sm", label: "Small" },
+                    { value: "md", label: "Medium" },
+                    { value: "lg", label: "Large" },
+                  ]} />
+                  <SelectControl label="Shadow" value={selectedStyles.shadow} onChange={(value) => updateStyle("shadow", value)} options={[
+                    { value: "none", label: "None" },
+                    { value: "sm", label: "Small" },
+                    { value: "md", label: "Medium" },
+                    { value: "lg", label: "Large" },
+                  ]} />
+                </div>
+              </div>
+              <button type="button" onClick={resetSectionDesign} className="rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">
+                Reset section design
               </button>
               <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-500">
                 <p className="flex items-center gap-2 font-semibold text-slate-700">

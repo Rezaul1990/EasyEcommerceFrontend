@@ -1,5 +1,5 @@
 import { contentValue } from "@/config/contentFields";
-import { isVisualCmsPreviewMode, visualCmsFieldAttrs, visualCmsSectionAttrs, type VisualCmsPreviewSearchParams } from "@/config/visualCms";
+import { isVisualCmsPreviewMode, mergeVisualStyle, visualCmsFieldAttrs, visualCmsFieldStyle, visualCmsSectionAttrs, visualCmsSectionStyle, type VisualCmsPreviewSearchParams } from "@/config/visualCms";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { ProductGrid } from "@/components/storefront/ProductGrid";
 import { VisualCmsPreviewBridge } from "@/components/storefront/VisualCmsPreviewBridge";
@@ -17,6 +17,10 @@ export default async function Home({ searchParams }: HomePageProps) {
   const visualPreview = isVisualCmsPreviewMode(params);
   const [products, categories, pageContent] = await Promise.all([getProducts(), getCategories(), getPublicPageContent("home")]);
   const content = pageContent.content;
+  const heroStyles = pageContent.styles?.hero;
+  const heroLayout = pageContent.layout?.hero;
+  const featuredStyles = pageContent.styles?.["featured-products"];
+  const featuredLayout = pageContent.layout?.["featured-products"];
   const featuredProducts = products.filter((product) => product.isFeatured).slice(0, 3);
 
   return (
@@ -24,23 +28,23 @@ export default async function Home({ searchParams }: HomePageProps) {
       <SiteHeader />
       <main>
         {visualPreview ? <VisualCmsPreviewBridge pageKey="home" /> : null}
-        <section className="bg-white" {...visualCmsSectionAttrs(visualPreview, "home", "hero")}>
+        <section className="bg-white" style={visualCmsSectionStyle(heroStyles, heroLayout)} {...visualCmsSectionAttrs(visualPreview, "home", "hero")}>
           <div className="mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8 lg:py-14">
             <div className="flex flex-col justify-center">
-              <p className="text-sm font-semibold uppercase tracking-wide text-teal-700" {...visualCmsFieldAttrs(visualPreview, "eyebrow")}>{contentValue(content, "eyebrow", "Modern ecommerce operations")}</p>
+              <p className="text-sm font-semibold uppercase tracking-wide text-teal-700" style={visualCmsFieldStyle(heroStyles, "text")} {...visualCmsFieldAttrs(visualPreview, "eyebrow", "text")}>{contentValue(content, "eyebrow", "Modern ecommerce operations")}</p>
               <h1 className="mt-3 max-w-2xl text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-                <span {...visualCmsFieldAttrs(visualPreview, "title")}>{contentValue(content, "title", "EasyEcommerce")}</span>
+                <span style={visualCmsFieldStyle(heroStyles, "heading")} {...visualCmsFieldAttrs(visualPreview, "title", "heading")}>{contentValue(content, "title", "EasyEcommerce")}</span>
               </h1>
-              <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600" {...visualCmsFieldAttrs(visualPreview, "subtitle")}>
+              <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600" style={visualCmsFieldStyle(heroStyles, "text")} {...visualCmsFieldAttrs(visualPreview, "subtitle", "text")}>
                 {contentValue(content, "subtitle", "A complete storefront and admin foundation for selling products, managing catalog data, processing orders, and controlling staff access.")}
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
-                <Link href="/products" className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-5 py-3 text-sm font-semibold text-white">
-                  <span {...visualCmsFieldAttrs(visualPreview, "primaryButton")}>{contentValue(content, "primaryButton", "Browse products")}</span>
+                <Link href="/products" className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-5 py-3 text-sm font-semibold text-white" style={visualCmsFieldStyle(heroStyles, "button")}>
+                  <span {...visualCmsFieldAttrs(visualPreview, "primaryButton", "button")}>{contentValue(content, "primaryButton", "Browse products")}</span>
                   <ArrowRight size={17} />
                 </Link>
-                <Link href="/admin" className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-800">
-                  <span {...visualCmsFieldAttrs(visualPreview, "secondaryButton")}>{contentValue(content, "secondaryButton", "Open admin")}</span>
+                <Link href="/admin" className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-800" style={mergeVisualStyle(undefined, { color: heroStyles?.buttonBackgroundColor })}>
+                  <span {...visualCmsFieldAttrs(visualPreview, "secondaryButton", "button")}>{contentValue(content, "secondaryButton", "Open admin")}</span>
                 </Link>
               </div>
             </div>
@@ -78,14 +82,14 @@ export default async function Home({ searchParams }: HomePageProps) {
           </div>
         </section>
 
-        <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8" {...visualCmsSectionAttrs(visualPreview, "home", "featured-products")}>
+        <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8" style={visualCmsSectionStyle(featuredStyles, featuredLayout)} {...visualCmsSectionAttrs(visualPreview, "home", "featured-products")}>
           <div className="mb-6 flex items-end justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-teal-700" {...visualCmsFieldAttrs(visualPreview, "featuredEyebrow")}>{contentValue(content, "featuredEyebrow", "Featured catalog")}</p>
-              <h2 className="mt-2 text-2xl font-semibold text-slate-950" {...visualCmsFieldAttrs(visualPreview, "featuredTitle")}>{contentValue(content, "featuredTitle", "Products ready to sell")}</h2>
+              <p className="text-sm font-semibold uppercase tracking-wide text-teal-700" style={visualCmsFieldStyle(featuredStyles, "text")} {...visualCmsFieldAttrs(visualPreview, "featuredEyebrow", "text")}>{contentValue(content, "featuredEyebrow", "Featured catalog")}</p>
+              <h2 className="mt-2 text-2xl font-semibold text-slate-950" style={visualCmsFieldStyle(featuredStyles, "heading")} {...visualCmsFieldAttrs(visualPreview, "featuredTitle", "heading")}>{contentValue(content, "featuredTitle", "Products ready to sell")}</h2>
             </div>
-            <Link href="/products" className="hidden text-sm font-semibold text-teal-700 sm:inline">
-              <span {...visualCmsFieldAttrs(visualPreview, "featuredLink")}>{contentValue(content, "featuredLink", "View all")}</span>
+            <Link href="/products" className="hidden text-sm font-semibold text-teal-700 sm:inline" style={visualCmsFieldStyle(featuredStyles, "button")}>
+              <span {...visualCmsFieldAttrs(visualPreview, "featuredLink", "button")}>{contentValue(content, "featuredLink", "View all")}</span>
             </Link>
           </div>
           <ProductGrid products={featuredProducts.length ? featuredProducts : products.slice(0, 3)} />
