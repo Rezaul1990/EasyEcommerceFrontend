@@ -350,7 +350,7 @@ export function VisualEditorClient() {
       setSavedLayout(nextLayout);
       setSections(nextSections);
       setSavedSections(nextSections);
-      setSuccess("Changes saved");
+      setSuccess("Changes saved and published");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Changes could not be saved");
     } finally {
@@ -398,7 +398,7 @@ export function VisualEditorClient() {
             </button>
             <button type="button" onClick={saveChanges} disabled={!dirty || saving || loading} className="inline-flex h-9 items-center gap-2 rounded-md bg-teal-600 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-400">
               {saving ? <Loader2 className="animate-spin" size={15} /> : <Save size={15} />}
-              {saving ? "Saving..." : "Save changes"}
+              {saving ? "Saving..." : "Save and publish"}
             </button>
           </div>
         </div>
@@ -611,7 +611,7 @@ export function VisualEditorClient() {
                   <Check size={14} />
                   Live preview only
                 </p>
-                <p className="mt-1">Edits update the iframe immediately. MongoDB is updated only when you save.</p>
+                <p className="mt-1">Edits update this preview immediately. The public website updates only after Save and publish.</p>
               </div>
             </div>
           </aside>

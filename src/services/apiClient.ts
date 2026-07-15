@@ -81,13 +81,14 @@ async function parseApiResponse<T>(response: Response): Promise<ApiResponse<T>> 
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const hasExplicitCache = options && ("cache" in options || "next" in options);
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
       ...(options?.headers || {}),
     },
-    next: { revalidate: 30 },
+    ...(hasExplicitCache ? {} : { next: { revalidate: 30 } }),
   });
 
   const payload = await parseApiResponse<T>(response);
@@ -194,7 +195,7 @@ export async function updateAdminPageContent(pageKey: string, payload: { content
 
 export async function getPublicPageContent(pageKey: string) {
   try {
-    return await request<PageContent>(`/content/${pageKey}`);
+    return await request<PageContent>(`/content/${pageKey}`, { cache: "no-store" });
   } catch {
     return { pageKey, content: {}, status: "published" as const };
   }
